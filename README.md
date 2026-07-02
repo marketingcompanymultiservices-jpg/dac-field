@@ -1,0 +1,462 @@
+# DAC - Doble Altura Control
+
+Sistema Integral de Gestión de Obras.
+
+Lema: "Construimos información con la misma precisión con la que construimos obras."
+
+## Sprint 1
+
+Esta base incluye:
+
+- Next.js con TypeScript.
+- Tailwind CSS con identidad visual de Doble Altura Control.
+- Cliente Supabase preparado en `lib/supabase.ts`.
+- Login simulado con usuario de prueba.
+- Dashboard Director.
+- Obra piloto: Quintas de Acuarela.
+- Centro de Control de Obra.
+- Registro Diario inicial.
+- Bitácora inicial.
+- Esquema inicial PostgreSQL en `database/schema.sql`.
+
+## Usuario de prueba
+
+- Correo: `jose@doblealtura.com`
+- Contraseña: `admin123`
+
+## Ejecutar localmente
+
+1. Instalar dependencias:
+
+```bash
+npm install
+```
+
+2. Iniciar el servidor de desarrollo:
+
+```bash
+npm run dev
+```
+
+3. Abrir:
+
+```text
+http://localhost:3000
+```
+
+## Supabase
+
+Todavía no hay backend real. Cuando se conecte Supabase, crear un archivo `.env.local` con:
+
+```env
+NEXT_PUBLIC_SUPABASE_URL=tu_url
+NEXT_PUBLIC_SUPABASE_ANON_KEY=tu_anon_key
+```
+
+La aplicación sigue funcionando con datos simulados mientras esas variables no existan.
+
+## Sprint 1.1
+
+Mejora del Registro Diario para celular:
+
+- Formulario por 8 pasos.
+- Barra de progreso superior con indicador "Paso X de 8".
+- Navegación Anterior / Siguiente.
+- Acciones Guardar borrador y Enviar registro.
+- Actividades ejecutadas en lista temporal.
+- Compromisos múltiples con estado inicial Pendiente.
+- Carga simulada de mínimo 5 fotografías con contador.
+- Resumen completo antes de enviar.
+
+## Sprint 1.2
+
+Módulo Avance de Obra:
+
+- Ruta `/projects/[projectId]/progress`.
+- Botón Avance conectado desde el Centro de Control.
+- Presupuesto mock con actividades, cantidades, valores y porcentaje ejecutado.
+- Avance general ponderado por valor total y porcentaje de avance.
+- Tarjetas de resumen financiero y físico.
+- Tabla responsive con barra de progreso por actividad.
+- Filtros: Todas, Finalizadas, En ejecución y Sin iniciar.
+- Pendiente para sprint futuro: carga real de presupuesto desde Excel.
+
+## Sprint 1.3
+
+Módulo Compromisos:
+
+- Ruta `/projects/[projectId]/commitments`.
+- Botón Compromisos conectado desde el Centro de Control.
+- Mock local de compromisos con responsable, fecha límite, prioridad, estado y origen.
+- Tarjetas superiores para total, pendientes, en proceso, vencidos, cumplidos y críticos.
+- Filtros: Todos, Pendientes, En proceso, Vencidos, Cumplidos y Alta / Crítica.
+- Formulario local para agregar compromisos con estado inicial Pendiente.
+- Acciones locales por compromiso: Marcar en proceso y Marcar cumplido.
+
+## Sprint 1.4
+
+Módulo Documentos:
+
+- Ruta `/projects/[projectId]/documents`.
+- Botón Documentos conectado desde el Centro de Control.
+- Expediente digital con carpetas iniciales de obra.
+- Mock local de documentos con versión, estado, fechas, usuario y observación.
+- Tarjetas superiores para total, vigentes, próximos a vencer, reemplazados y carpetas activas.
+- Panel de carpetas, filtros por estado y buscador.
+- Formulario local para agregar documentos con archivo simulado.
+
+## Sprint 1.5
+
+Modulo Reportes:
+
+- Ruta `/projects/[projectId]/reports`.
+- Boton Reportes conectado desde el Centro de Control.
+- Mock local de reportes generados y borradores.
+- Panel para generar reportes simulados en PDF o Excel.
+- Opciones para incluir fotografias, compromisos y observaciones de interventoria.
+- Tarjetas superiores para total, generados, borradores, ultimo reporte generado y tipos disponibles.
+- Filtros: Todos, Generados, Borradores, Diario, Semanal, Mensual, Fotografico, Avance, Compromisos y Documental.
+- Acciones simuladas: Ver, Descargar y Eliminar borrador.
+- Pendiente para sprint futuro: generacion real de PDF/Excel y persistencia en Supabase.
+
+## Sprint 1.6
+
+Pulido de interfaz y navegacion:
+
+- Layout general reutilizable con header superior, logo DA, usuario conectado y boton Salir.
+- Navegacion consistente entre Dashboard, Obra, Registro Diario, Bitacora, Avance, Documentos, Reportes y Compromisos.
+- Boton Volver integrado al layout cuando aplica.
+- Encabezado reutilizable para modulos principales.
+- Mejoras responsive para celular con navegacion horizontal y tarjetas mas consistentes.
+- Unificacion visual de botones, tarjetas, sombras, colores y espaciados.
+- Se mantiene placeholder DA porque no existe logo real en `/public`.
+
+## Sprint 2.0
+
+Registro Diario como centro de la plataforma:
+
+- Store global con Context API en `lib/project-store.tsx`.
+- Toda la app comparte proyecto, actividades, registro diario, fotografias, compromisos, documentos, avance, bitacora y reportes en memoria.
+- Registro Diario actualiza automaticamente Avance, Dashboard, Bitacora, Compromisos y Reportes.
+- Motor de avance dinamico: calcula cantidad acumulada, cantidad pendiente, porcentaje ejecutado y estado por actividad.
+- Dashboard deja de depender de numeros fijos y usa metricas derivadas del store.
+- Bitacora muestra eventos automaticos creados desde actividades, compromisos y fotografias.
+- Vista previa de Reportes usa informacion real registrada en memoria.
+- No se implementa backend ni Supabase todavia.
+
+## Sprint 2.1
+
+Persistencia local temporal:
+
+- Se agrega `localStorage` para que la informacion no se pierda al recargar la pagina.
+- Helper de almacenamiento en `lib/storage.ts` con `saveAppState`, `loadAppState` y `clearAppState`.
+- El Store Global carga datos locales al iniciar la app y usa mocks iniciales si no hay informacion guardada.
+- Se persisten proyecto, actividades, registros diarios, fotografias simuladas, compromisos, documentos, reportes, bitacora y avance calculado.
+- Header con indicador `Datos guardados localmente`.
+- Dashboard incluye boton `Reiniciar datos de prueba` con confirmacion antes de borrar.
+- No hay backend ni Supabase; la persistencia vive solo en el navegador actual.
+
+## Sprint 2.2
+
+Modulo maestro de Presupuesto:
+
+- Ruta `/projects/[projectId]/budget`.
+- Boton Presupuesto conectado desde el Centro de Control y la navegacion superior.
+- Componentes reutilizables `BudgetSummary`, `BudgetTable`, `BudgetFilters` y `BudgetImportCard`.
+- El presupuesto queda como fuente oficial futura para control fisico y financiero.
+- Estructura preparada para importar Excel: item, descripcion, unidad, cantidad, valor unitario, valor total, capitulo y subcapitulo.
+- Filtros por capitulo, subcapitulo, estado y busqueda de actividad.
+- Botones simulados para importar y exportar presupuesto.
+- No se modifica todavia el modulo Avance.
+
+## Sprint 2.3
+
+Presupuesto conectado con Avance:
+
+- El presupuesto global es la fuente oficial de actividades para Avance.
+- Avance ya no usa mocks separados; calcula desde `budgetItems` y las cantidades del Registro Diario.
+- Registro Diario permite buscar y seleccionar actividades del presupuesto.
+- Al registrar una actividad se guarda el item presupuestal y se valida que la cantidad de hoy no supere el pendiente.
+- Avance recalcula ejecutado acumulado, pendiente, porcentaje, estado, valor ejecutado y valor pendiente.
+- Presupuesto muestra columnas calculadas: ejecutado acumulado, pendiente, porcentaje ejecutado y estado.
+- La persistencia localStorage conserva las actividades registradas y recalcula los avances al recargar.
+
+## Sprint 2.4
+
+Importador de Presupuesto Excel:
+
+- La ruta `/projects/[projectId]/budget` permite cargar archivos `.xlsx` o `.xls`.
+- Se usa la libreria `xlsx` para leer la primera hoja del archivo en el navegador.
+- DAC detecta automaticamente columnas como item, descripcion, unidad, cantidad, valor unitario, valor total y porcentaje.
+- Antes de importar se muestra una vista previa de las primeras 10 actividades detectadas.
+- Al confirmar, el presupuesto actual se reemplaza y se reinicia el avance calculado.
+- El presupuesto importado se guarda en el Store Global y persiste en `localStorage`.
+- Avance, Dashboard y Registro Diario usan inmediatamente las actividades reales importadas.
+- Se guarda metadata de version: archivo, fecha de importacion, usuario, total de actividades y valor total importado.
+- Se muestran errores claros cuando el archivo no es Excel, faltan columnas minimas, no hay actividades validas o existen valores numericos invalidos.
+
+## Sprint 2.5
+
+Validacion y auditoria de importacion Excel:
+
+- Antes de confirmar una importacion, DAC muestra una seccion de validacion del archivo.
+- El resumen incluye archivo, filas leidas, actividades validas, capitulos, subcapitulos, filas descartadas y valor total detectado.
+- Se muestran las primeras 20 actividades validas y las primeras 20 filas descartadas con motivo.
+- Motivos de descarte: fila vacia, falta unidad, falta cantidad, falta valor total, capitulo, subcapitulo, subtotal, total general y valor invalido.
+- Se agregan botones `Confirmar importacion` y `Cancelar`.
+- Al cancelar, el presupuesto anterior queda intacto.
+- Al confirmar, se reemplaza el presupuesto maestro, se crea nueva version, se reinicia el avance calculado y se guarda metadata en localStorage.
+- No se permite importar si no hay actividades validas, si el valor total es 0 o si faltan columnas obligatorias.
+- Se ignoran filas de subtotal, total, costo directo, administracion, imprevistos, utilidad, IVA, AIU y costos de obra.
+
+## Sprint 2.6
+
+Registro Diario como centro operativo:
+
+- Se elimina el ingreso libre de actividades en Registro Diario.
+- Toda ejecucion debe provenir del Presupuesto Maestro.
+- El buscador de actividades permite buscar por item, descripcion, capitulo y subcapitulo.
+- Al seleccionar una actividad se muestran sus datos tecnicos, cantidades, valores, avance y estado.
+- El residente registra cantidad ejecutada hoy, observacion, frente, responsable, hora inicio, hora final, fotografias y compromiso opcional.
+- Se bloquean cantidades negativas, cero, no numericas o mayores al pendiente.
+- Cada ejecucion queda asociada al item presupuestal con `budgetItemId`.
+- El historial nunca se sobrescribe; cada registro diario agrega una nueva entrada.
+- Nueva ficha por actividad en `/projects/[projectId]/activities/[activityId]`.
+- Presupuesto incluye boton `Ver actividad` para abrir la ficha.
+- Avance, Dashboard, Bitacora, Reportes y Compromisos se alimentan desde los registros asociados al presupuesto.
+
+## Sprint 2.7
+
+Levantamiento Inicial de Obra:
+
+- Nueva ruta `/projects/[projectId]/initial-survey`.
+- Boton `Levantamiento Inicial` conectado desde el Centro de Control.
+- Muestra todas las actividades del Presupuesto Maestro.
+- Permite editar el `Ejecutado inicial` por actividad.
+- Calcula pendiente inicial, porcentaje inicial, valor ejecutado inicial y estado.
+- Valida que no existan valores negativos, no numericos o superiores a la cantidad contratada.
+- Al guardar actualiza el punto de partida del avance usando `initialProgress`.
+- Avance y Dashboard se recalculan automaticamente.
+- Cada guardado crea evento en Bitacora: `Levantamiento inicial actualizado.`
+- Guarda fecha del levantamiento y usuario `Jose Martinez`.
+- Incluye filtros por estado y busqueda por item o descripcion.
+- Incluye exportacion simulada del levantamiento.
+
+## Sprint 2.8
+
+Reporte Diario Real:
+
+- Nueva ruta `/projects/[projectId]/daily-report/[reportId]`.
+- El reporte lee informacion real del Store Global.
+- Registro Diario guarda informacion general, personal, contratistas, equipos, materiales, observaciones, problemas, acciones y firma.
+- La vista cruza actividades, compromisos y fotografias por fecha del reporte.
+- Se agrega boton `Ver reporte diario` desde Registro Diario y Bitacora.
+- Estructura tipo informe con encabezado DAC, datos de obra, codigo, fecha, residente y estado.
+- Secciones: informacion general, personal, equipos/materiales, actividades, observaciones, problemas/acciones, compromisos, fotografias y firma.
+- Resumen automatico de jornada con actividades, compromisos y fotografias.
+- Acciones: Volver, Imprimir y Descargar PDF simulado.
+- `Imprimir` usa `window.print()`.
+- El PDF real queda pendiente para un sprint futuro.
+
+## Sprint 3.0
+
+Fotografias reales desde navegador y celular:
+
+- Registro Diario reemplaza fotografias simuladas por carga real de imagenes.
+- Permite tomar foto desde celular o seleccionar varias imagenes desde galeria.
+- Formatos permitidos: JPG, JPEG, PNG y WEBP.
+- Tamano maximo por foto: 5 MB.
+- Contador `Fotos cargadas X/5` con minimo recomendado de 5 fotos.
+- Previsualizacion con miniatura, descripcion editable, actividad asociada opcional y eliminacion antes de enviar.
+- Metadata de fotos en Store Global y persistencia liviana en `localStorage`.
+- Imagenes guardadas en IndexedDB mediante `lib/imageStorage.ts` para evitar saturar `localStorage`.
+- Al guardar el Registro Diario, las fotos quedan asociadas al reporte diario.
+- Reporte Diario Real muestra las fotografias reales cargadas.
+- Ficha individual de actividad muestra fotografias asociadas desde Registro Diario.
+- Bitacora registra el evento `Se cargaron X fotografias al registro diario.`
+- Supabase Storage y PDF fotografico definitivo quedan pendientes para una integracion futura.
+
+## Branding 01
+
+Identidad corporativa oficial:
+
+- Logo oficial guardado en `public/branding/logo.png`.
+- Favicon creado desde el isotipo en `public/favicon.png`.
+- Nuevo componente `AppLogo` con deteccion automatica: primero `logo.svg`, luego `logo.png`, y finalmente placeholder `DA`.
+- Nuevo componente `AppBrand` para mostrar logo, nombre, subtitulo y lema.
+- Login, header general, Centro de Control, Dashboard, Reporte Diario e impresion usan la marca reutilizable.
+- En celular la marca se resume como logo + `DAC`.
+- En escritorio se muestra `Doble Altura Control` y `Sistema Integral de Gestion de Obras`.
+- Metadata actualizada: `DAC | Doble Altura Control`.
+
+## Sprint 3.1
+
+Modulo Administracion:
+
+- Nueva ruta `/admin`.
+- Menu `Administracion` agregado a la navegacion general.
+- Submodulos: Empresa, Usuarios, Roles y Permisos.
+- Empresa editable con nombre, NIT, direccion, ciudad, correo, telefono, logo y subdominio futuro.
+- CRUD local de usuarios con crear, editar, activar/desactivar y eliminar.
+- Usuarios iniciales: Jose Martinez, Hernan Aristizabal, Oscar Ospina y Oliver Mora.
+- Roles iniciales editables: Administrador, Director, Residente, Interventoria, Supervisor Tecnico y Consulta.
+- Matriz de permisos por rol con switches para Ver, Crear, Editar, Eliminar, Exportar y Administrar.
+- Header general muestra usuario conectado, rol y empresa.
+- La informacion administrativa vive en Store Global y persiste en `localStorage`.
+- Queda preparada la estructura para futura autenticacion con Supabase, sin implementar seguridad real todavia.
+
+## Sprint 3.2
+
+Planificacion Semanal:
+
+- Ruta `/projects/[projectId]/planning`.
+- Boton `Planificación` en menu principal y Centro de Control.
+- Las actividades provienen exclusivamente del Presupuesto Maestro.
+- Formulario semanal con actividad, cantidad programada, responsable, fecha inicio, fecha fin y prioridad.
+- Prioridades: Alta, Media y Baja.
+- Estados automaticos: Pendiente, En ejecucion, Finalizada y Atrasada.
+- Tabla con ITEM, Actividad, Unidad, Cantidad programada, Responsable, Fecha inicio, Fecha fin, Prioridad y Estado.
+- Filtros por semana, responsable, prioridad y estado.
+- Tarjetas: Actividades programadas, terminadas, pendientes y cumplimiento semanal.
+- El avance del Registro Diario actualiza automaticamente cantidad ejecutada, porcentaje y estado de la programacion.
+- Si llega la fecha final y no se completa, la actividad queda como Atrasada.
+- Boton `Duplicar semana` para copiar una programacion semanal hacia otra semana.
+- Boton `Exportar programacion` con simulacion.
+- Cada nueva planificacion registra evento en Bitacora.
+- Persistencia en Store Global y `localStorage`.
+
+## Sprint 3.3
+
+Evidencia fotografica real:
+
+- Registro Diario permite tomar foto desde celular, seleccionar desde galeria y cargar varias imagenes.
+- Fotos reales con previsualizacion, descripcion editable, actividad asociada y eliminacion antes de enviar.
+- Validacion de JPG, JPEG, PNG y WEBP con maximo 5 MB por foto.
+- Contador `Fotos cargadas X/5` con minimo recomendado de 5 fotos.
+- Imagenes comprimidas en navegador cuando es posible.
+- Metadata en Store Global y `localStorage`.
+- Imagenes almacenadas en IndexedDB mediante `lib/imageStorage.ts`.
+- Cada foto puede quedar asociada a Registro Diario, Reporte Diario y Actividad.
+- Reporte Diario muestra fotografias reales del registro.
+- Ficha de Actividad muestra fotografias asociadas por `activityId`.
+- Bitacora registra `Se cargaron X fotografias al registro diario.`
+- Reportes muestra conteo real de fotos por reporte diario.
+- Al reiniciar datos de prueba se limpian tambien las imagenes de IndexedDB.
+- PDF con imagenes embebidas queda pendiente para un sprint futuro; la vista en pantalla e impresion ya muestra miniaturas reales.
+
+## Sprint 3.4
+
+Programado vs Ejecutado y Curva S basica:
+
+- Nueva seccion dentro de `/projects/[projectId]/progress`.
+- Calcula avance programado desde Planificacion Semanal.
+- Calcula avance ejecutado desde cantidades registradas en Registro Diario.
+- Indicadores: avance programado, avance ejecutado, desviacion, actividades atrasadas y cumplimiento semanal.
+- Tabla comparativa con ITEM, Actividad, Unidad, Programado, Ejecutado, Diferencia, % Cumplimiento y Estado.
+- Estados: En tiempo, Atrasada, Adelantada y Sin programacion.
+- Filtros por semana, capitulo, estado y responsable.
+- Curva S basica en SVG sin librerias externas.
+- Dashboard agrega tarjeta `Desviacion Programado vs Ejecutado`.
+- Reportes agrega tipo `Reporte Programado vs Ejecutado`.
+- PDF real de este reporte queda pendiente para un sprint futuro.
+
+## Sprint 3.5
+
+Centro de Alertas Inteligentes:
+
+- Nueva ruta `/projects/[projectId]/alerts`.
+- Boton `Alertas` en menu principal, Centro de Control y Dashboard.
+- Bandeja con tipo, prioridad, fecha, proyecto, actividad relacionada, responsable, estado y accion recomendada.
+- Tipos: actividad atrasada, compromiso vencido, registro diario faltante, registro sin fotografias, actividad sin movimiento, planificacion vencida, documento pendiente y observacion de interventoria pendiente.
+- Prioridades: Critica, Alta, Media y Baja.
+- Estados: Nueva, En proceso, Atendida y Cerrada.
+- Tarjetas superiores: Total alertas, Criticas, Pendientes y Atendidas.
+- Filtros por prioridad, estado, responsable, tipo y fecha.
+- Cada alerta permite Ver detalle, marcar En proceso, marcar Atendida y Cerrar.
+- Reglas automaticas calculadas desde Planificacion, Registro Diario, Fotografias, Compromisos y Documentos.
+- Dashboard mantiene indicador de alertas criticas.
+- Bitacora registra creacion y cambio/cierre de alertas.
+- Persistencia en Store Global y `localStorage`.
+
+## Sprint 3.6
+
+Indicadores de Productividad:
+
+- Nueva seccion `Productividad` dentro de `/projects/[projectId]/progress`.
+- Calcula productividad por actividad desde cantidades registradas en Registro Diario.
+- Calcula cantidad ejecutada total, dias con movimiento, promedio diario, ultimo avance, valor ejecutado, responsable y estado.
+- Calcula productividad por responsable con actividades registradas, cantidad ejecutada, valor ejecutado, compromisos y alertas asociadas.
+- Tarjetas superiores: produccion total registrada, valor ejecutado acumulado, promedio diario, actividades con movimiento esta semana y actividades sin movimiento.
+- Tabla profesional por actividad con filtros por capitulo, responsable, semana, estado y busqueda.
+- Rankings de actividades con mayor produccion y menor movimiento.
+- Dashboard agrega tarjeta `Productividad semanal`.
+- Reportes agrega tipo `Reporte de Productividad`.
+- Alertas agrega regla sugerida `Actividad con baja productividad` cuando una actividad programada no registra avance reciente en mas de 3 dias.
+- No se implementa backend ni Supabase; los indicadores se calculan desde Store Global y persistencia local.
+
+## Sprint 3.7
+
+Modo Obra:
+
+- Nueva ruta `/field`.
+- Acceso desde Dashboard, navegacion principal y Centro de Control.
+- Experiencia simplificada para celular con botones grandes, tarjetas simples y navegacion inferior fija.
+- Pantalla principal con obra activa, registrar dia, tomar fotografias, actividades de hoy, compromisos, enviar reporte y sincronizacion local.
+- Registro Diario compacto con clima, personal, actividades, fotografias, observaciones y envio.
+- Las actividades siguen viniendo del Presupuesto Maestro y de la Planificacion Semanal.
+- Actividades de hoy muestra la programacion vigente para la fecha actual.
+- Boton grande `Tomar foto` usa camara del celular o galeria con el flujo existente de IndexedDB.
+- Compromisos muestra pendientes, vencidos y mios, y permite crear compromisos rapidos.
+- Indicadores: datos guardados localmente, fotos pendientes y reporte enviado/no enviado.
+- Enviar reporte guarda un reporte diario compacto en el Store Global.
+- No se reemplazan las pantallas completas existentes; Modo Obra es una vista adicional para operacion en campo.
+
+## Sprint 3.8
+
+Centro de Control del Director:
+
+- El Dashboard existente se reemplaza por un tablero ejecutivo completo en `/dashboard`.
+- Nuevo componente `DirectorControlCenter` como Home principal del Director Administrativo y Director de Obra.
+- Resumen general con proyecto activo, avance fisico, avance programado, desviacion, valor ejecutado, valor pendiente, ultimo registro, ultima sincronizacion y estado del proyecto.
+- Actividad de hoy con registro diario recibido, fotos cargadas, actividades ejecutadas y responsable.
+- Alertas criticas muestra solo alertas Criticas y Altas, con acceso a Ver todas.
+- Productividad muestra produccion semanal, actividades con mayor avance y actividades sin movimiento.
+- Compromisos resume pendientes, vencidos y cumplidos.
+- Planeacion resume actividades programadas esta semana, atrasadas y cumplimiento semanal.
+- Evidencia muestra fotografias cargadas hoy y ultimo reporte enviado.
+- Accesos rapidos grandes: Registro Diario, Avance, Presupuesto, Reportes, Alertas, Planificacion, Modo Obra y Centro de Control.
+- Indicadores de Obra muestra actividades totales, finalizadas, en ejecucion y sin iniciar.
+- Se agrega estructura de portafolio preparada para multiples proyectos.
+- No se implementa backend ni Supabase; todo se calcula desde Store Global y persistencia local.
+
+## Sprint 3.9
+
+QA Integral y Estado del Sistema:
+
+- Nueva ruta `/system/health`.
+- Acceso `Estado del Sistema` agregado desde Administracion.
+- Pantalla de diagnostico con estado general, version DAC, sistema operativo, ultima actualizacion y estado global.
+- Diagnostico de datos: actividades sin presupuesto, duplicadas, compromisos huerfanos, reportes sin actividades, fotografias sin reporte, usuarios sin rol y roles sin permisos.
+- Diagnostico de rendimiento: total de actividades, registros diarios, fotografias, documentos y reportes.
+- Diagnostico de integridad para Presupuesto, Registro Diario, Avance, Reportes, Bitacora, Alertas, Planificacion, Productividad, Modo Obra y Dashboard.
+- Validacion de navegacion para todas las rutas principales.
+- Validacion de almacenamiento para Store Global, localStorage e IndexedDB, con uso aproximado del navegador cuando esta disponible.
+- Boton `Ejecutar diagnostico` con barra de progreso.
+- Resumen automatico del sistema: Excelente, Bueno o Requiere atencion.
+- Cada ejecucion registra evento en Bitacora mediante `addSystemEvent`.
+- No se implementa backend ni Supabase; es una revision local de calidad y estabilidad.
+
+## Sprint 4.0
+
+Preparacion DAC Field v1.0.0:
+
+- Configuracion central creada en `lib/appConfig.ts`.
+- Servicio de entorno creado en `lib/environment.ts`.
+- Nueva pantalla `/about` con logo, nombre del sistema, version, empresa, fecha de compilacion y creditos.
+- Footer global con indicador `DAC Field v1.0.0` y ambiente actual.
+- Archivo `.env.example` preparado para variables publicas y futuras credenciales Supabase.
+- `Estado del Sistema` incorpora seccion `Estado de despliegue`.
+- Validaciones de despliegue: localStorage, IndexedDB, Store Global, PDF, Camara, Reportes y Presupuesto.
+- Boton `Exportar configuracion` genera un JSON con la configuracion de la aplicacion y capacidades locales.
+- Documentacion de salida en `docs/v1-release.md`.
+- No se implementa backend ni Supabase; la aplicacion queda preparada para publicacion futura.

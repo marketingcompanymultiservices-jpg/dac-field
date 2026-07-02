@@ -1,0 +1,31 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --dac-primary: #004c6d;
+  --dac-secondary: #00b2d7;
+  --dac-alert: #d78c37;
+  --dac-text: #131413;
+}
+
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body {
+  margin: 0;
+  background: #ffffff;
+  color: var(--dac-text);
+}
+button, input, textarea, select { font: inherit; }
+.focus-ring { @apply focus:outline-none focus:ring-2 focus:ring-dac-secondary focus:ring-offset-2; }
+
+@media print {
+  header.sticky,
+  .print\:hidden {
+    display: none !important;
+  }
+
+  body {
+    background: #ffffff;
+  }
+}
