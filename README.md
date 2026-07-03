@@ -52,6 +52,7 @@ Para autenticacion real y activacion de usuarios, crear un archivo `.env.local` 
 NEXT_PUBLIC_SUPABASE_URL=tu_url
 NEXT_PUBLIC_SUPABASE_ANON_KEY=tu_anon_key
 SUPABASE_SERVICE_ROLE_KEY=tu_service_role_key_solo_servidor
+SUPABASE_SERVICE_KEY=alias_opcional_si_ya_lo_tienes_configurado
 ```
 
 La aplicacion conserva datos operativos locales mientras se completa la migracion total a backend.

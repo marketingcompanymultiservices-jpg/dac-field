@@ -62,23 +62,21 @@ export async function POST(request: NextRequest) {
     ban_duration: active ? "none" : "876000h"
   };
 
-  const authResult = existingUser
-    ? await adminClient.auth.admin.updateUserById(existingUser.id, {
-        ...authPayload,
-        ...(temporaryPassword ? { password: temporaryPassword } : {})
-      })
-    : await adminClient.auth.admin.createUser({
-        ...authPayload,
-        password: temporaryPassword,
-        email_confirm: true
-      });
+  const authUserResult = existingUser
+    ? await updateAuthUser(adminClient, existingUser.id, authPayload, temporaryPassword)
+    : await createAuthUser(adminClient, authPayload, temporaryPassword, email);
 
-  if (authResult.error) return NextResponse.json({ error: authResult.error.message }, { status: 500 });
+  if ("error" in authUserResult) return NextResponse.json({ error: authUserResult.error }, { status: 500 });
 
-  const authUser = authResult.data.user;
+  const authUser = authUserResult.user;
+  const { data: verifiedAuthUser, error: verifyError } = await adminClient.auth.admin.getUserById(authUser.id);
+  if (verifyError || !verifiedAuthUser.user) {
+    return NextResponse.json({ error: "Supabase Auth no confirmo la creacion del usuario. No se actualizo profiles." }, { status: 500 });
+  }
+
   const { error: profileError } = await adminClient.from("profiles").upsert(
     {
-      id: authUser.id,
+      id: verifiedAuthUser.user.id,
       nombre: fullName,
       correo: email,
       rol: role,
@@ -91,7 +89,7 @@ export async function POST(request: NextRequest) {
   if (profileError) return NextResponse.json({ error: profileError.message }, { status: 500 });
 
   return NextResponse.json({
-    id: authUser.id,
+    id: verifiedAuthUser.user.id,
     email,
     role,
     active,
@@ -100,7 +98,67 @@ export async function POST(request: NextRequest) {
 }
 
 async function findAuthUserByEmail(adminClient: NonNullable<ReturnType<typeof createSupabaseAdminClient>>, email: string) {
-  const { data, error } = await adminClient.auth.admin.listUsers({ page: 1, perPage: 1000 });
-  if (error) throw error;
-  return data.users.find((user) => user.email?.toLowerCase() === email.toLowerCase()) ?? null;
+  const normalizedEmail = email.toLowerCase();
+  const perPage = 1000;
+  let page = 1;
+
+  while (page <= 10) {
+    const { data, error } = await adminClient.auth.admin.listUsers({ page, perPage });
+    if (error) throw error;
+    const user = data.users.find((item) => item.email?.toLowerCase() === normalizedEmail);
+    if (user) return user;
+    if (data.users.length < perPage) return null;
+    page += 1;
+  }
+
+  return null;
+}
+
+async function createAuthUser(
+  adminClient: NonNullable<ReturnType<typeof createSupabaseAdminClient>>,
+  authPayload: {
+    email: string;
+    user_metadata: { full_name: string; role: string; must_change_password: boolean };
+    ban_duration: string;
+  },
+  temporaryPassword: string,
+  email: string
+) {
+  const authResult = await adminClient.auth.admin.createUser({
+    ...authPayload,
+    password: temporaryPassword,
+    email_confirm: true
+  });
+
+  if (!authResult.error && authResult.data.user) return { user: authResult.data.user };
+
+  const message = authResult.error?.message ?? "No fue posible crear el usuario en Supabase Auth.";
+  const duplicated = message.toLowerCase().includes("already") || message.toLowerCase().includes("registered") || message.toLowerCase().includes("exists");
+  if (!duplicated) return { error: message };
+
+  const existingUser = await findAuthUserByEmail(adminClient, email);
+  if (!existingUser) return { error: "El correo ya existe, pero no fue posible localizarlo en Supabase Auth." };
+  return updateAuthUser(adminClient, existingUser.id, authPayload, temporaryPassword);
+}
+
+async function updateAuthUser(
+  adminClient: NonNullable<ReturnType<typeof createSupabaseAdminClient>>,
+  id: string,
+  authPayload: {
+    email: string;
+    user_metadata: { full_name: string; role: string; must_change_password: boolean };
+    ban_duration: string;
+  },
+  temporaryPassword: string
+) {
+  const authResult = await adminClient.auth.admin.updateUserById(id, {
+    ...authPayload,
+    ...(temporaryPassword ? { password: temporaryPassword } : {})
+  });
+
+  if (authResult.error || !authResult.data.user) {
+    return { error: authResult.error?.message ?? "No fue posible actualizar el usuario en Supabase Auth." };
+  }
+
+  return { user: authResult.data.user };
 }
