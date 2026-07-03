@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { AppLogo } from "@/components/AppLogo";
+import { useAuth } from "@/components/AuthProvider";
 import { deleteImage, getImage, saveImage } from "@/lib/imageStorage";
 import { getPlanningExecution, getPlanningStatus, getTodayISO } from "@/lib/planning";
 import { useProjectStore } from "@/lib/project-store";
@@ -29,6 +30,7 @@ const inputClass = "focus-ring mt-2 w-full rounded-md border border-dac-primary/
 const labelClass = "block text-sm font-black text-dac-text";
 
 export function FieldMode() {
+  const { profile, user } = useAuth();
   const {
     activities,
     addDailyActivity,
@@ -36,7 +38,6 @@ export function FieldMode() {
     addDailyPhotos,
     budgetItems,
     commitments,
-    currentUser,
     dailyReports,
     deleteDailyPhoto,
     hasLocalData,
@@ -56,7 +57,8 @@ export function FieldMode() {
   const [photoMessage, setPhotoMessage] = useState("");
   const [photoPreviews, setPhotoPreviews] = useState<Record<string, string>>({});
 
-  const currentUserName = currentUser.firstName + " " + currentUser.lastName;
+  const currentUserName = profile ? (profile.firstName + " " + profile.lastName).trim() : user?.email ?? project.resident;
+  const currentUserEmail = user?.email ?? currentUserName;
   const currentPhotos = photos.filter((photo) => photo.date === today);
   const todayActivities = activities.filter((activity) => activity.date === today);
   const todayReport = dailyReports.find((entry) => entry.date === today);
@@ -113,7 +115,7 @@ export function FieldMode() {
     setActivityDraft((current) => ({
       ...current,
       budgetItemId: item.item,
-      owner: current.owner || project.resident
+      owner: current.owner || currentUserName
     }));
     setActivitySearch(item.item + " - " + item.description);
   }
@@ -142,12 +144,14 @@ export function FieldMode() {
       quantity,
       observation: activityDraft.observation,
       workFront: activityDraft.workFront,
-      owner: activityDraft.owner || project.resident,
+      owner: activityDraft.owner || currentUserName,
       startTime: activityDraft.startTime,
       endTime: activityDraft.endTime,
       photoCount: currentPhotos.length,
       date: today,
-      time: new Date().toTimeString().slice(0, 5)
+      time: new Date().toTimeString().slice(0, 5),
+      createdBy: currentUserEmail,
+      updatedBy: currentUserEmail
     });
     setActivityDraft(getEmptyActivityDraft());
     setActivitySearch("");
@@ -159,9 +163,11 @@ export function FieldMode() {
     addDailyCommitment({
       budgetItemId: activityDraft.budgetItemId || undefined,
       description: commitmentDescription.trim(),
-      owner: activityDraft.owner || project.resident,
+      owner: activityDraft.owner || currentUserName,
       dueDate: today,
-      priority: commitmentPriority
+      priority: commitmentPriority,
+      createdBy: currentUserEmail,
+      updatedBy: currentUserEmail
     });
     setCommitmentDescription("");
     setCommitmentPriority("Media");
@@ -218,7 +224,9 @@ export function FieldMode() {
         observations: report.observations,
         problems: "",
         actions: "",
-        signature: project.resident
+        signature: currentUserName,
+        createdBy: currentUserEmail,
+        updatedBy: currentUserEmail
       },
       "Enviado"
     );
@@ -293,7 +301,7 @@ export function FieldMode() {
 
             <Field label="Cantidad ejecutada hoy" value={activityDraft.quantity} placeholder="48" onChange={(value) => setActivityDraft((current) => ({ ...current, quantity: value }))} />
             <Field label="Frente de trabajo" value={activityDraft.workFront} placeholder="Torre 3 - Piso 5" onChange={(value) => setActivityDraft((current) => ({ ...current, workFront: value }))} />
-            <Field label="Responsable" value={activityDraft.owner} placeholder={project.resident} onChange={(value) => setActivityDraft((current) => ({ ...current, owner: value }))} />
+            <Field label="Responsable" value={activityDraft.owner} placeholder={currentUserName} onChange={(value) => setActivityDraft((current) => ({ ...current, owner: value }))} />
             <div className="grid grid-cols-2 gap-3">
               <Field label="Hora inicio" type="time" value={activityDraft.startTime} onChange={(value) => setActivityDraft((current) => ({ ...current, startTime: value }))} />
               <Field label="Hora final" type="time" value={activityDraft.endTime} onChange={(value) => setActivityDraft((current) => ({ ...current, endTime: value }))} />

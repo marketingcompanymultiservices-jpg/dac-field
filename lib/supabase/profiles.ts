@@ -14,7 +14,7 @@ export type SupabaseProfile = {
 export async function ensureUserProfile(user: User, localUsers: AdminUser[]) {
   if (!supabaseClient || !user.email) return null;
 
-  const localUser = localUsers.find((item) => item.email.toLowerCase() === user.email?.toLowerCase());
+  const localUser = findLocalUserForEmail(user.email, localUsers);
   const fallbackName = user.email.split("@")[0] || "Usuario DAC";
   const profilePayload = {
     id: user.id,
@@ -41,6 +41,20 @@ export async function ensureUserProfile(user: User, localUsers: AdminUser[]) {
 
   if (error) throw error;
   return data as SupabaseProfile;
+}
+
+function findLocalUserForEmail(email: string, localUsers: AdminUser[]) {
+  const normalizedEmail = email.toLowerCase();
+  const normalizedLocalPart = normalizeEmailLocalPart(email);
+
+  return (
+    localUsers.find((item) => item.email.toLowerCase() === normalizedEmail) ??
+    localUsers.find((item) => normalizeEmailLocalPart(item.email) === normalizedLocalPart)
+  );
+}
+
+function normalizeEmailLocalPart(email: string) {
+  return email.split("@")[0].toLowerCase().replace(/[._-]/g, "");
 }
 
 export function mapProfileToAdminUser(profile: SupabaseProfile): AdminUser {

@@ -4,6 +4,7 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import { ModuleHeader } from "@/components/ModuleHeader";
 import { PageShell } from "@/components/PageShell";
+import { useAuth } from "@/components/AuthProvider";
 import { buildProgrammedRows, calculateProgrammedSummary } from "@/lib/programmed-progress";
 import { getTodayISO, getWeekStartISO } from "@/lib/planning";
 import { buildActivityProductivity, calculateProductivitySummary } from "@/lib/productivity";
@@ -14,6 +15,7 @@ const currencyFormatter = new Intl.NumberFormat("es-CO", { style: "currency", cu
 const numberFormatter = new Intl.NumberFormat("es-CO", { maximumFractionDigits: 1 });
 
 export function DirectorControlCenter() {
+  const { profile } = useAuth();
   const {
     activities,
     alerts,
@@ -33,6 +35,7 @@ export function DirectorControlCenter() {
     resetDemoData
   } = useProjectStore();
   const today = getTodayISO();
+  const dashboardUser = profile ?? currentUser;
   const weekStart = getWeekStartISO(today);
   const todayActivities = activities.filter((activity) => activity.date === today);
   const todayPhotos = photos.filter((photo) => photo.date === today);
@@ -65,7 +68,7 @@ export function DirectorControlCenter() {
     <PageShell activeItem="Dashboard">
       <ModuleHeader
         eyebrow="Centro de Control del Director"
-        title={"Bienvenido, " + currentUser.firstName + " " + currentUser.lastName}
+        title={"Bienvenido, " + dashboardUser.firstName + " " + dashboardUser.lastName}
         meta={"Estado del proyecto: " + project.status}
         description="Tablero ejecutivo para control administrativo, tecnico y operativo de la obra."
       />

@@ -48,6 +48,24 @@ function buildAuxiliaryPermissionMatrix(): AdminPermissionMatrix {
   return matrix;
 }
 
+function buildResidentPermissionMatrix(): AdminPermissionMatrix {
+  const matrix = buildPermissionMatrix([]);
+  matrix.Dashboard.Ver = true;
+  matrix["Registro Diario"].Ver = true;
+  matrix["Registro Diario"].Crear = true;
+  matrix["Registro Diario"].Editar = true;
+  matrix.Bitacora.Ver = true;
+  matrix.Avance.Ver = true;
+  matrix.Avance.Crear = true;
+  matrix.Avance.Editar = true;
+  matrix.Presupuesto.Ver = true;
+  matrix.Presupuesto.Editar = true;
+  matrix.Documentos.Ver = true;
+  matrix.Documentos.Crear = true;
+  matrix["Levantamiento Inicial"].Ver = true;
+  return matrix;
+}
+
 export const adminCompany: AdminCompany = {
   id: "doble-altura-construcciones",
   name: "Doble Altura Construcciones S.A.S.",
@@ -78,7 +96,7 @@ export const adminUsers: AdminUser[] = [
     id: "user-hernan-aristizabal",
     firstName: "Hernan",
     lastName: "Aristizabal",
-    email: "hernan@doblealtura.com",
+    email: "hernan@doblealturaconstrucciones.com.co",
     position: "Residente de Obra",
     role: "Residente de Obra",
     status: "Activo",
@@ -131,7 +149,7 @@ export const adminUsers: AdminUser[] = [
 export const adminRoles: AdminRole[] = [
   { id: "role-admin", name: "Administrador", description: "Control total de la plataforma y configuracion.", permissions: buildPermissionMatrix(permissionActions) },
   { id: "role-director-administrativo", name: "Director Administrativo", description: "Gestion integral administrativa, reportes, seguimiento directivo y control de usuarios.", permissions: buildPermissionMatrix(["Ver", "Crear", "Editar", "Exportar", "Imprimir"]) },
-  { id: "role-residente-obra", name: "Residente de Obra", description: "Registro diario, bitacora, fotografias y compromisos operativos.", permissions: buildPermissionMatrix(["Ver", "Crear", "Editar", "Imprimir"]) },
+  { id: "role-residente-obra", name: "Residente de Obra", description: "Registro diario, bitacora, fotografias, avances y consulta del presupuesto sin administracion de usuarios ni configuracion.", permissions: buildResidentPermissionMatrix() },
   { id: "role-interventoria", name: "Interventoria", description: "Consulta, observaciones y seguimiento documental.", permissions: buildPermissionMatrix(["Ver", "Crear", "Exportar"]) },
   { id: "role-supervisor", name: "Supervisor Tecnico", description: "Revision tecnica de avance, presupuesto y actividades.", permissions: buildPermissionMatrix(["Ver", "Editar"]) },
   { id: "role-auxiliar-administrativa", name: "Auxiliar Administrativa", description: "Puede ver informacion, descargar informes, imprimir reportes y exportar documentos. No puede eliminar, modificar presupuestos, crear obras, aprobar compras, cambiar usuarios ni configuracion.", permissions: buildAuxiliaryPermissionMatrix() },

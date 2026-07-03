@@ -170,6 +170,8 @@ export type DailyActivity = {
   photoCount?: number;
   date: string;
   time: string;
+  createdBy?: string;
+  updatedBy?: string;
 };
 
 export type DailyPhoto = {
@@ -204,6 +206,8 @@ export type DailyReportEntry = {
   actions: string;
   signature: string;
   status: "Borrador" | "Enviado";
+  createdBy?: string;
+  updatedBy?: string;
 };
 
 export type CommitmentPriority = "Baja" | "Media" | "Alta" | "Critica";
@@ -221,6 +225,8 @@ export type Commitment = {
   createdAt?: string;
   projectId?: string;
   budgetItemId?: string;
+  createdBy?: string;
+  updatedBy?: string;
 };
 
 export type DocumentStatus = "Vigente" | "Proxima a vencer" | "Reemplazado" | "Archivado";

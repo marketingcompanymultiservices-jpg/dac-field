@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
+import { useAuth } from "@/components/AuthProvider";
 import { deleteImage, getImage, saveImage } from "@/lib/imageStorage";
 import { getProgressStatus } from "@/lib/progress";
 import { useProjectStore } from "@/lib/project-store";
@@ -76,6 +77,7 @@ const inputClass = "focus-ring mt-2 w-full rounded-md border border-dac-primary/
 const labelClass = "block text-sm font-bold text-dac-text";
 
 export function DailyReportWizard({ projectName }: { projectName: string }) {
+  const { profile, user } = useAuth();
   const {
     activities,
     project,
@@ -101,6 +103,8 @@ export function DailyReportWizard({ projectName }: { projectName: string }) {
   const [activityDraft, setActivityDraft] = useState<ActivityDraft>(getEmptyActivityDraft());
   const [activitySearch, setActivitySearch] = useState("");
   const [commitmentDraft, setCommitmentDraft] = useState<CommitmentDraft>({ description: "", owner: "", dueDate: "", priority: "Media" });
+  const currentUserName = profile ? (profile.firstName + " " + profile.lastName).trim() : user?.email ?? project.resident;
+  const currentUserEmail = user?.email ?? currentUserName;
 
   const progress = useMemo(() => ((currentStep + 1) / steps.length) * 100, [currentStep]);
   const isFirstStep = currentStep === 0;
@@ -185,21 +189,25 @@ export function DailyReportWizard({ projectName }: { projectName: string }) {
       quantity: quantityToday,
       observation: activityDraft.observation.trim(),
       workFront: activityDraft.workFront.trim(),
-      owner: activityDraft.owner.trim() || "Sin responsable",
+      owner: activityDraft.owner.trim() || currentUserName,
       startTime: activityDraft.startTime,
       endTime: activityDraft.endTime,
       photoCount: 0,
       date: getReportDate(),
-      time: getReportTime()
+      time: getReportTime(),
+      createdBy: currentUserEmail,
+      updatedBy: currentUserEmail
     });
 
     if (activityDraft.commitmentDescription.trim()) {
       addDailyCommitment({
         budgetItemId: selectedBudgetItem.item,
         description: activityDraft.commitmentDescription.trim(),
-        owner: activityDraft.commitmentOwner.trim() || activityDraft.owner.trim() || "Sin responsable",
+        owner: activityDraft.commitmentOwner.trim() || activityDraft.owner.trim() || currentUserName,
         dueDate: activityDraft.commitmentDueDate || getReportDate(),
-        priority: activityDraft.commitmentPriority
+        priority: activityDraft.commitmentPriority,
+        createdBy: currentUserEmail,
+        updatedBy: currentUserEmail
       });
     }
 
@@ -212,9 +220,11 @@ export function DailyReportWizard({ projectName }: { projectName: string }) {
     if (!commitmentDraft.description.trim()) return;
     addDailyCommitment({
       description: commitmentDraft.description.trim(),
-      owner: commitmentDraft.owner.trim() || "Sin responsable",
+      owner: commitmentDraft.owner.trim() || currentUserName,
       dueDate: commitmentDraft.dueDate || getReportDate(),
-      priority: commitmentDraft.priority
+      priority: commitmentDraft.priority,
+      createdBy: currentUserEmail,
+      updatedBy: currentUserEmail
     });
     setCommitmentDraft({ description: "", owner: "", dueDate: "", priority: "Media" });
     setMessage("Compromiso agregado al modulo Compromisos y a la bitacora.");
@@ -232,7 +242,7 @@ export function DailyReportWizard({ projectName }: { projectName: string }) {
           projectId: project.id,
           date: getReportDate(),
           time: getReportTime(),
-          user: "Jose Martinez"
+          user: currentUserName
         });
         savedPhotos.push(photo);
       } catch (error) {
@@ -270,7 +280,9 @@ export function DailyReportWizard({ projectName }: { projectName: string }) {
         observations: report.observations,
         problems: report.problems,
         actions: report.actions,
-        signature: report.signature
+        signature: report.signature || currentUserName,
+        createdBy: currentUserEmail,
+        updatedBy: currentUserEmail
       },
       status
     );
