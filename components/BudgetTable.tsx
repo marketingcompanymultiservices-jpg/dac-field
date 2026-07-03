@@ -5,7 +5,7 @@ import { Fragment, useMemo, useState } from "react";
 import { BudgetFilters, type BudgetFilterState } from "@/components/BudgetFilters";
 import { useAuth } from "@/components/AuthProvider";
 import { getProgressStatus } from "@/lib/progress";
-import type { BudgetItem, BudgetProgressItem, ManualProgressChange } from "@/types";
+import type { BudgetItem, BudgetProgressItem, BudgetQuantityChange, ManualProgressChange } from "@/types";
 
 const currencyFormatter = new Intl.NumberFormat("es-CO", {
   style: "currency",
@@ -26,18 +26,23 @@ export function BudgetTable({
   items,
   progressItems,
   manualProgressChanges,
+  budgetQuantityChanges,
   projectId = "quintas-de-acuarela",
-  onUpdateManualProgress
+  onUpdateManualProgress,
+  onUpdateBudgetQuantity
 }: {
   items: BudgetItem[];
   progressItems: BudgetProgressItem[];
   manualProgressChanges: ManualProgressChange[];
+  budgetQuantityChanges: BudgetQuantityChange[];
   projectId?: string;
   onUpdateManualProgress: (change: Omit<ManualProgressChange, "id" | "date" | "origin">) => void;
+  onUpdateBudgetQuantity: (change: Omit<BudgetQuantityChange, "id" | "date" | "origin">) => void;
 }) {
   const { profile, user } = useAuth();
   const [filters, setFilters] = useState<BudgetFilterState>(initialFilters);
   const [editingItem, setEditingItem] = useState("");
+  const [baseQuantityDraft, setBaseQuantityDraft] = useState("");
   const [executedDraft, setExecutedDraft] = useState("");
   const [observationDraft, setObservationDraft] = useState("");
   const [responsibleDraft, setResponsibleDraft] = useState("");
@@ -64,6 +69,7 @@ export function BudgetTable({
   function startEditing(item: BudgetItem) {
     const progressItem = progressByItem.get(item.item);
     setEditingItem(item.item);
+    setBaseQuantityDraft(String(item.quantity));
     setExecutedDraft(String(progressItem?.executedQuantity ?? 0));
     setObservationDraft("");
     setResponsibleDraft(profile ? (profile.firstName + " " + profile.lastName).trim() : user?.email ?? "");
@@ -72,6 +78,7 @@ export function BudgetTable({
 
   function cancelEditing() {
     setEditingItem("");
+    setBaseQuantityDraft("");
     setExecutedDraft("");
     setObservationDraft("");
     setResponsibleDraft("");
@@ -81,10 +88,21 @@ export function BudgetTable({
   function saveEditing(item: BudgetItem) {
     const progressItem = progressByItem.get(item.item);
     const previousQuantity = progressItem?.executedQuantity ?? 0;
+    const nextBaseQuantity = Number(baseQuantityDraft);
     const nextQuantity = Number(executedDraft);
+
+    if (!Number.isFinite(nextBaseQuantity)) {
+      setMessage("La cantidad presupuestada debe ser un valor numerico.");
+      return;
+    }
 
     if (!Number.isFinite(nextQuantity)) {
       setMessage("La cantidad ejecutada acumulada debe ser un valor numerico.");
+      return;
+    }
+
+    if (nextBaseQuantity < 0) {
+      setMessage("La cantidad presupuestada no puede ser negativa.");
       return;
     }
 
@@ -93,23 +111,48 @@ export function BudgetTable({
       return;
     }
 
-    if (nextQuantity > item.quantity) {
-      setMessage("La cantidad ejecutada acumulada no puede superar la cantidad contratada.");
+    if (nextBaseQuantity < nextQuantity) {
+      setMessage("La cantidad presupuestada no puede ser menor que la cantidad ejecutada acumulada.");
       return;
     }
 
-    onUpdateManualProgress({
-      activityId: item.item,
-      item: item.item,
-      description: item.description,
-      previousQuantity,
-      newQuantity: nextQuantity,
-      difference: nextQuantity - previousQuantity,
-      user: responsibleDraft.trim() || profile?.email || user?.email || "Usuario DAC",
-      observation: observationDraft.trim()
-    });
-    setMessage("Avance manual actualizado correctamente.");
+    const responsible = responsibleDraft.trim() || profile?.email || user?.email || "Usuario DAC";
+    const observation = observationDraft.trim();
+
+    if (nextBaseQuantity !== item.quantity) {
+      onUpdateBudgetQuantity({
+        activityId: item.item,
+        item: item.item,
+        description: item.description,
+        previousQuantity: item.quantity,
+        newQuantity: nextBaseQuantity,
+        difference: nextBaseQuantity - item.quantity,
+        user: responsible,
+        observation
+      });
+    }
+
+    if (nextQuantity !== previousQuantity) {
+      onUpdateManualProgress({
+        activityId: item.item,
+        item: item.item,
+        description: item.description,
+        previousQuantity,
+        newQuantity: nextQuantity,
+        difference: nextQuantity - previousQuantity,
+        user: responsible,
+        observation
+      });
+    }
+
+    if (nextBaseQuantity === item.quantity && nextQuantity === previousQuantity) {
+      setMessage("No hay cambios para guardar.");
+      return;
+    }
+
+    setMessage("Presupuesto y avance actualizados correctamente.");
     setEditingItem("");
+    setBaseQuantityDraft("");
     setExecutedDraft("");
     setObservationDraft("");
     setResponsibleDraft("");
@@ -181,7 +224,11 @@ export function BudgetTable({
                 {editingItem === item.item && (
                   <tr className="border-b border-dac-primary/10 bg-dac-primary/[0.03]">
                     <td colSpan={13} className="px-4 py-5">
-                      <div className="grid gap-4 lg:grid-cols-[1fr_1fr_1fr_auto]">
+                      <div className="grid gap-4 lg:grid-cols-[1fr_1fr_1fr_1fr_auto]">
+                        <label className="block text-sm font-black text-dac-text">
+                          Cantidad presupuestada real
+                          <input value={baseQuantityDraft} onChange={(event) => setBaseQuantityDraft(event.target.value)} className="focus-ring mt-2 w-full rounded-md border border-dac-primary/20 bg-white px-3 py-3 text-sm font-semibold outline-none" />
+                        </label>
                         <label className="block text-sm font-black text-dac-text">
                           Cantidad ejecutada acumulada
                           <input value={executedDraft} onChange={(event) => setExecutedDraft(event.target.value)} className="focus-ring mt-2 w-full rounded-md border border-dac-primary/20 bg-white px-3 py-3 text-sm font-semibold outline-none" />
@@ -209,12 +256,12 @@ export function BudgetTable({
         </table>
       </div>
     </div>
-    <ProgressChangeHistory changes={manualProgressChanges} />
+    <ProgressChangeHistory changes={manualProgressChanges} budgetQuantityChanges={budgetQuantityChanges} />
     </section>
   );
 }
 
-function ProgressChangeHistory({ changes }: { changes: ManualProgressChange[] }) {
+function ProgressChangeHistory({ changes, budgetQuantityChanges }: { changes: ManualProgressChange[]; budgetQuantityChanges: BudgetQuantityChange[] }) {
   return (
     <section className="rounded-lg border border-dac-primary/15 bg-white p-4 shadow-panel sm:p-5">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
@@ -247,6 +294,38 @@ function ProgressChangeHistory({ changes }: { changes: ManualProgressChange[] })
             {changes.length === 0 && (
               <tr>
                 <td colSpan={6} className="px-4 py-5 text-sm font-semibold text-dac-text/60">Aun no hay cambios manuales de avance.</td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+      <div className="mt-6 overflow-x-auto">
+        <div className="mb-3 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+          <h3 className="text-lg font-black text-dac-primary">Correcciones de cantidad presupuestada</h3>
+          <p className="text-sm font-black text-dac-primary">{budgetQuantityChanges.length} registros</p>
+        </div>
+        <table className="w-full min-w-[860px] border-collapse text-left">
+          <thead className="bg-dac-primary text-white">
+            <tr>
+              {["FECHA", "USUARIO", "ACTIVIDAD", "CANT. BASE ANTERIOR", "CANT. BASE NUEVA", "OBSERVACION"].map((header) => (
+                <th key={header} className="px-4 py-3 text-xs font-black uppercase">{header}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {budgetQuantityChanges.map((change) => (
+              <tr key={change.id} className="border-b border-dac-primary/10 last:border-b-0">
+                <td className="px-4 py-4 text-sm font-semibold">{new Date(change.date).toLocaleString("es-CO")}</td>
+                <td className="px-4 py-4 text-sm font-semibold">{change.user}</td>
+                <td className="px-4 py-4 text-sm font-black text-dac-primary">{change.item} - {change.description}</td>
+                <td className="px-4 py-4 text-sm font-semibold">{numberFormatter.format(change.previousQuantity)}</td>
+                <td className="px-4 py-4 text-sm font-semibold">{numberFormatter.format(change.newQuantity)}</td>
+                <td className="px-4 py-4 text-sm font-semibold">{change.observation || "Sin observacion"}</td>
+              </tr>
+            ))}
+            {budgetQuantityChanges.length === 0 && (
+              <tr>
+                <td colSpan={6} className="px-4 py-5 text-sm font-semibold text-dac-text/60">Aun no hay correcciones de cantidad presupuestada.</td>
               </tr>
             )}
           </tbody>

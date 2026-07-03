@@ -499,12 +499,13 @@ Integracion Supabase:
 Edicion de avance y cantidades del presupuesto:
 
 - El modulo Presupuesto agrega modo de edicion por actividad.
-- Campos editables: cantidad ejecutada acumulada, responsable de actualizacion y observacion.
-- Campos contractuales bloqueados: ITEM, descripcion, unidad, cantidad contratada, valor unitario y valor total.
-- Al guardar se recalculan cantidad pendiente, porcentaje ejecutado, valor ejecutado, valor pendiente y estado.
-- Validaciones para impedir valores negativos, no numericos o mayores que la cantidad contratada.
+- Campos editables: cantidad presupuestada real, cantidad ejecutada acumulada, responsable de actualizacion y observacion.
+- Campos contractuales bloqueados: ITEM, descripcion, unidad y valor unitario.
+- Al guardar se recalculan valor total, cantidad pendiente, porcentaje ejecutado, valor ejecutado, valor pendiente y estado.
+- Validaciones para impedir valores negativos, no numericos, cantidad ejecutada mayor que la cantidad presupuestada o cantidad presupuestada menor que la cantidad ejecutada.
 - Avance se actualiza automaticamente con las cantidades editadas desde el Presupuesto Maestro.
 - Cada edicion genera historial de cambios con cantidad anterior, cantidad nueva, diferencia, usuario, fecha, observacion y origen.
+- Las correcciones de cantidad presupuestada generan historial propio con cantidad base anterior y nueva.
 - Presupuesto incluye seccion `Historial de cambios de avance`.
 - Bitacora registra el evento de actualizacion manual de avance.
 - Reportes incorpora el conteo de actualizaciones manuales en el resumen de avance.

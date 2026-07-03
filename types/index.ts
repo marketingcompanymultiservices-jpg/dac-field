@@ -98,6 +98,20 @@ export type ManualProgressChange = {
   origin: "Edición manual de avance";
 };
 
+export type BudgetQuantityChange = {
+  id: string;
+  activityId: string;
+  item: string;
+  description: string;
+  previousQuantity: number;
+  newQuantity: number;
+  difference: number;
+  user: string;
+  date: string;
+  observation: string;
+  origin: "Correccion manual de cantidad presupuestada";
+};
+
 export type BudgetItem = {
   id?: string;
   item: string;

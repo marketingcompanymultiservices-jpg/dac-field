@@ -5,6 +5,7 @@ import type {
   AdminUser,
   AlertOverride,
   BudgetItem,
+  BudgetQuantityChange,
   BudgetVersion,
   BudgetProgressItem,
   Commitment,
@@ -44,6 +45,7 @@ export type PersistedAppState = {
   alertOverrides?: AlertOverride[];
   knownAlertIds?: string[];
   manualProgressChanges?: ManualProgressChange[];
+  budgetQuantityChanges?: BudgetQuantityChange[];
 };
 
 export function saveAppState(state: PersistedAppState) {

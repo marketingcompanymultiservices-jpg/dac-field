@@ -30,6 +30,7 @@ import type {
   AlertOverride,
   AlertStatus,
   BudgetItem,
+  BudgetQuantityChange,
   BudgetVersion,
   BudgetProgressItem,
   Commitment,
@@ -59,6 +60,7 @@ type ProjectStoreValue = {
   budgetVersion: BudgetVersion | null;
   progressItems: BudgetProgressItem[];
   manualProgressChanges: ManualProgressChange[];
+  budgetQuantityChanges: BudgetQuantityChange[];
   timeline: TimelineEvent[];
   reports: ProjectReport[];
   planningItems: ActivityPlanning[];
@@ -93,6 +95,7 @@ type ProjectStoreValue = {
   deleteDraftReport: (id: string) => void;
   importBudget: (items: BudgetItem[], version: BudgetVersion) => void;
   updateManualProgress: (change: Omit<ManualProgressChange, "id" | "date" | "origin">) => void;
+  updateBudgetQuantity: (change: Omit<BudgetQuantityChange, "id" | "date" | "origin">) => void;
   saveInitialSurvey: (items: BudgetItem[], metadata: InitialSurveyMetadata) => void;
   upsertActivityPlanning: (planning: Omit<ActivityPlanning, "status">) => void;
   duplicateWeeklyPlanning: (fromWeekStart: string, toWeekStart: string) => void;
@@ -119,6 +122,7 @@ export function ProjectStoreProvider({ children }: { children: ReactNode }) {
   const [budgetItems, setBudgetItems] = useState<BudgetItem[]>(initialBudgetItems);
   const [budgetVersion, setBudgetVersion] = useState<BudgetVersion | null>(null);
   const [manualProgressChanges, setManualProgressChanges] = useState<ManualProgressChange[]>([]);
+  const [budgetQuantityChanges, setBudgetQuantityChanges] = useState<BudgetQuantityChange[]>([]);
   const [planningItems, setPlanningItems] = useState<ActivityPlanning[]>([]);
   const [initialSurvey, setInitialSurvey] = useState<InitialSurveyMetadata | null>(null);
   const [systemEvents, setSystemEvents] = useState<TimelineEvent[]>([]);
@@ -272,6 +276,7 @@ export function ProjectStoreProvider({ children }: { children: ReactNode }) {
       setBudgetItems(storedState.budgetItems ?? initialBudgetItems);
       setBudgetVersion(storedState.budgetVersion ?? null);
       setManualProgressChanges(storedState.manualProgressChanges ?? []);
+      setBudgetQuantityChanges(storedState.budgetQuantityChanges ?? []);
       setPlanningItems((storedState.planningItems ?? []).map((item) => ({ ...item, plannedQuantity: item.plannedQuantity ?? 0, status: "Pendiente" })));
       setInitialSurvey(storedState.initialSurvey ?? null);
       setSystemEvents(storedState.systemEvents ?? []);
@@ -305,6 +310,7 @@ export function ProjectStoreProvider({ children }: { children: ReactNode }) {
       budgetItems,
       budgetVersion,
       manualProgressChanges,
+      budgetQuantityChanges,
       planningItems,
       initialSurvey,
       systemEvents,
@@ -319,7 +325,7 @@ export function ProjectStoreProvider({ children }: { children: ReactNode }) {
     });
     setHasLocalData(true);
     setLastSavedAt(savedAt);
-  }, [activities, adminCompany, adminRoles, adminUsers, alertOverrides, budgetItems, budgetVersion, commitments, dailyReports, documents, initialSurvey, isHydrated, knownAlertIds, manualProgressChanges, photos, planningItems, progressItems, project, reports, shouldPersist, systemEvents, timeline]);
+  }, [activities, adminCompany, adminRoles, adminUsers, alertOverrides, budgetItems, budgetQuantityChanges, budgetVersion, commitments, dailyReports, documents, initialSurvey, isHydrated, knownAlertIds, manualProgressChanges, photos, planningItems, progressItems, project, reports, shouldPersist, systemEvents, timeline]);
 
   function resetDemoData() {
     clearAppState();
@@ -333,6 +339,7 @@ export function ProjectStoreProvider({ children }: { children: ReactNode }) {
     setBudgetItems(initialBudgetItems);
     setBudgetVersion(null);
     setManualProgressChanges([]);
+    setBudgetQuantityChanges([]);
     setPlanningItems([]);
     setInitialSurvey(null);
     setSystemEvents([]);
@@ -358,6 +365,7 @@ export function ProjectStoreProvider({ children }: { children: ReactNode }) {
     budgetItems,
     budgetVersion,
     manualProgressChanges,
+    budgetQuantityChanges,
     progressItems,
     planningItems,
     initialSurvey,
@@ -457,6 +465,7 @@ export function ProjectStoreProvider({ children }: { children: ReactNode }) {
       setActivities([]);
       setPlanningItems([]);
       setManualProgressChanges([]);
+      setBudgetQuantityChanges([]);
     },
     updateManualProgress(change) {
       setShouldPersist(true);
@@ -472,6 +481,37 @@ export function ProjectStoreProvider({ children }: { children: ReactNode }) {
           id: "event-manual-progress-" + Date.now(),
           time: new Date().toTimeString().slice(0, 5),
           title: "Se actualizo avance manual de la actividad " + change.item + " " + change.description + ".",
+          description: "Cantidad anterior: " + change.previousQuantity + ". Cantidad nueva: " + change.newQuantity + ". Observacion: " + (change.observation || "Sin observacion."),
+          source: "Sistema"
+        },
+        ...current
+      ]);
+    },
+    updateBudgetQuantity(change) {
+      setShouldPersist(true);
+      const nextChange: BudgetQuantityChange = {
+        ...change,
+        id: "budget-quantity-" + Date.now(),
+        date: new Date().toISOString(),
+        origin: "Correccion manual de cantidad presupuestada"
+      };
+      setBudgetQuantityChanges((current) => [nextChange, ...current]);
+      setBudgetItems((current) =>
+        current.map((item) =>
+          item.item === change.item
+            ? {
+                ...item,
+                quantity: change.newQuantity,
+                totalValue: change.newQuantity * item.unitValue
+              }
+            : item
+        )
+      );
+      setSystemEvents((current) => [
+        {
+          id: "event-budget-quantity-" + Date.now(),
+          time: new Date().toTimeString().slice(0, 5),
+          title: "Se actualizo cantidad presupuestada de la actividad " + change.item + " " + change.description + ".",
           description: "Cantidad anterior: " + change.previousQuantity + ". Cantidad nueva: " + change.newQuantity + ". Observacion: " + (change.observation || "Sin observacion."),
           source: "Sistema"
         },
