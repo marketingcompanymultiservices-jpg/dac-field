@@ -176,12 +176,22 @@ export function BudgetTable({
         </div>
       </div>
 
-      <div className="overflow-x-auto">
-        <table className="w-full min-w-[1180px] border-collapse text-left">
-          <thead className="bg-dac-primary text-white">
+      <div className="max-h-[68vh] overflow-auto">
+        <table className="w-full min-w-[980px] table-fixed border-separate border-spacing-0 text-left">
+          <colgroup>
+            <col className="w-[86px]" />
+            <col />
+            <col className="w-[70px]" />
+            <col className="w-[105px]" />
+            <col className="w-[105px]" />
+            <col className="w-[105px]" />
+            <col className="w-[92px]" />
+            <col className="w-[138px]" />
+          </colgroup>
+          <thead className="sticky top-0 z-20 bg-dac-primary text-white shadow-sm">
             <tr>
-              {["ITEM", "DESCRIPCION", "UND", "CANTIDAD", "EJECUTADO ACUM.", "PENDIENTE", "% EJECUTADO", "ESTADO", "VALOR UNITARIO", "VALOR TOTAL", "CAPITULO", "SUBCAPITULO", "ACCION"].map((header) => (
-                <th key={header} className="px-4 py-3 text-xs font-black uppercase">
+              {["ITEM", "DESCRIPCION", "UND", "CANTIDAD", "EJECUTADO", "SALDO", "AVANCE", "ACCIONES"].map((header) => (
+                <th key={header} className={"px-2.5 py-2.5 text-[11px] font-black uppercase " + (header === "ACCIONES" ? "sticky right-0 z-30 bg-dac-primary shadow-[-10px_0_14px_-14px_rgba(19,20,19,0.65)]" : "")}>
                   {header}
                 </th>
               ))}
@@ -195,27 +205,28 @@ export function BudgetTable({
 
               return (
                 <Fragment key={item.item}>
-                <tr key={item.item} className="border-b border-dac-primary/10 align-top last:border-b-0">
-                  <td className="px-4 py-4 text-sm font-black text-dac-primary">{item.item}</td>
-                  <td className="px-4 py-4">
-                    <p className="font-bold text-dac-text">{item.description}</p>
+                <tr key={item.item} className="align-top">
+                  <td className="border-b border-dac-primary/10 px-2.5 py-3 text-sm font-black text-dac-primary">{item.item}</td>
+                  <td className="border-b border-dac-primary/10 px-2.5 py-3">
+                    <p className="truncate text-sm font-bold text-dac-text" title={item.description}>{item.description}</p>
+                    <p className="mt-1 truncate text-[11px] font-semibold text-dac-text/55" title={item.chapter + " / " + item.subchapter}>
+                      {item.chapter} / {item.subchapter} · V. unit. {currencyFormatter.format(item.unitValue)} · Total {currencyFormatter.format(item.totalValue)}
+                    </p>
                   </td>
-                  <td className="px-4 py-4 text-sm font-semibold">{item.unit}</td>
-                  <td className="px-4 py-4 text-sm font-semibold">{numberFormatter.format(item.quantity)}</td>
-                  <td className="px-4 py-4 text-sm font-semibold">{numberFormatter.format(progressItem?.executedQuantity ?? 0)}</td>
-                  <td className="px-4 py-4 text-sm font-semibold">{numberFormatter.format(progressItem?.pendingQuantity ?? item.quantity)}</td>
-                  <td className="px-4 py-4 text-sm font-black text-dac-primary">{progress.toFixed(1)} %</td>
-                  <td className="px-4 py-4"><span className={getStatusClass(status)}>{status}</span></td>
-                  <td className="px-4 py-4 text-sm font-semibold">{currencyFormatter.format(item.unitValue)}</td>
-                  <td className="px-4 py-4 text-sm font-black text-dac-primary">{currencyFormatter.format(item.totalValue)}</td>
-                  <td className="px-4 py-4 text-sm font-semibold">{item.chapter}</td>
-                  <td className="px-4 py-4 text-sm font-semibold">{item.subchapter}</td>
-                  <td className="px-4 py-4">
-                    <div className="grid gap-2">
-                      <Link href={"/projects/" + projectId + "/activities/" + encodeURIComponent(item.item)} className="focus-ring inline-flex rounded-md bg-dac-primary px-3 py-2 text-center text-xs font-black text-white hover:bg-dac-secondary">
+                  <td className="border-b border-dac-primary/10 px-2.5 py-3 text-sm font-semibold">{item.unit}</td>
+                  <td className="border-b border-dac-primary/10 px-2.5 py-3 text-sm font-semibold tabular-nums">{numberFormatter.format(item.quantity)}</td>
+                  <td className="border-b border-dac-primary/10 px-2.5 py-3 text-sm font-semibold tabular-nums">{numberFormatter.format(progressItem?.executedQuantity ?? 0)}</td>
+                  <td className="border-b border-dac-primary/10 px-2.5 py-3 text-sm font-semibold tabular-nums">{numberFormatter.format(progressItem?.pendingQuantity ?? item.quantity)}</td>
+                  <td className="border-b border-dac-primary/10 px-2.5 py-3">
+                    <p className="text-sm font-black text-dac-primary tabular-nums">{progress.toFixed(1)} %</p>
+                    <span className={getStatusClass(status)}>{status}</span>
+                  </td>
+                  <td className="sticky right-0 z-10 border-b border-dac-primary/10 bg-white px-2.5 py-2.5 shadow-[-10px_0_14px_-14px_rgba(19,20,19,0.45)]">
+                    <div className="grid gap-1.5">
+                      <Link href={"/projects/" + projectId + "/activities/" + encodeURIComponent(item.item)} className="focus-ring inline-flex rounded-md bg-dac-primary px-2 py-1.5 text-center text-[11px] font-black text-white hover:bg-dac-secondary">
                         Ver actividad
                       </Link>
-                      <button type="button" onClick={() => startEditing(item)} className="focus-ring rounded-md border border-dac-primary px-3 py-2 text-xs font-black text-dac-primary hover:bg-dac-secondary/10">
+                      <button type="button" onClick={() => startEditing(item)} className="focus-ring rounded-md border border-dac-primary px-2 py-1.5 text-[11px] font-black text-dac-primary hover:bg-dac-secondary/10">
                         Editar avance
                       </button>
                     </div>
@@ -223,7 +234,7 @@ export function BudgetTable({
                 </tr>
                 {editingItem === item.item && (
                   <tr className="border-b border-dac-primary/10 bg-dac-primary/[0.03]">
-                    <td colSpan={13} className="px-4 py-5">
+                    <td colSpan={8} className="px-3 py-4">
                       <div className="grid gap-4 lg:grid-cols-[1fr_1fr_1fr_1fr_auto]">
                         <label className="block text-sm font-black text-dac-text">
                           Cantidad presupuestada real
