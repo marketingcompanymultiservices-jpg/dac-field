@@ -46,14 +46,15 @@ http://localhost:3000
 
 ## Supabase
 
-Todavía no hay backend real. Cuando se conecte Supabase, crear un archivo `.env.local` con:
+Para autenticacion real y activacion de usuarios, crear un archivo `.env.local` con:
 
 ```env
 NEXT_PUBLIC_SUPABASE_URL=tu_url
 NEXT_PUBLIC_SUPABASE_ANON_KEY=tu_anon_key
+SUPABASE_SERVICE_ROLE_KEY=tu_service_role_key_solo_servidor
 ```
 
-La aplicación sigue funcionando con datos simulados mientras esas variables no existan.
+La aplicacion conserva datos operativos locales mientras se completa la migracion total a backend.
 
 ## Sprint 1.1
 
@@ -510,3 +511,17 @@ Edicion de avance y cantidades del presupuesto:
 - Bitacora registra el evento de actualizacion manual de avance.
 - Reportes incorpora el conteo de actualizaciones manuales en el resumen de avance.
 - La persistencia se mantiene en Store Global y `localStorage`; no se migra informacion a Supabase en este sprint.
+
+## Sprint 5.4C
+
+Activacion de usuarios por administrador:
+
+- Administracion > Usuarios permite crear/activar usuarios reales usando correo y contrasena temporal.
+- La creacion de usuarios usa una ruta servidor protegida: `/api/admin/users`.
+- Se requiere `SUPABASE_SERVICE_ROLE_KEY` solo del lado servidor para crear usuarios en Supabase Auth.
+- Cada usuario queda sincronizado con `public.profiles` con rol, estado activo/inactivo y `must_change_password`.
+- Los usuarios con contrasena temporal son enviados obligatoriamente a `/change-password`.
+- Al cambiar la contrasena, Supabase Auth actualiza la clave y `profiles.must_change_password` pasa a `false`.
+- Migracion requerida: `database/sprint-5-4c-user-activation.sql`.
+- El login actual se conserva sin cambios.
+

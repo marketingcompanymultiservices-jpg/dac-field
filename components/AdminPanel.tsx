@@ -3,12 +3,13 @@
 import Link from "next/link";
 import { FormEvent, useMemo, useState } from "react";
 import { AppLogo } from "@/components/AppLogo";
+import { useAuth } from "@/components/AuthProvider";
 import { permissionActions, permissionModules } from "@/lib/mock-data";
 import { useProjectStore } from "@/lib/project-store";
 import type { AdminCompany, AdminRole, AdminUser } from "@/types";
 
 type AdminTab = "Empresa" | "Usuarios" | "Roles" | "Permisos";
-type UserDraft = Omit<AdminUser, "id" | "createdAt" | "status" | "active">;
+type UserDraft = Omit<AdminUser, "id" | "createdAt" | "status"> & { temporaryPassword: string };
 
 const tabs: AdminTab[] = ["Empresa", "Usuarios", "Roles", "Permisos"];
 const inputClass = "focus-ring mt-2 w-full rounded-md border border-dac-primary/20 px-3 py-2 text-sm";
@@ -104,6 +105,7 @@ function CompanyAdmin() {
 }
 
 function UsersAdmin() {
+  const { session } = useAuth();
   const { adminCompany, adminRoles, adminUsers, addAdminUser, deleteAdminUser, updateAdminUser } = useProjectStore();
   const emptyDraft: UserDraft = {
     firstName: "",
@@ -113,24 +115,71 @@ function UsersAdmin() {
     role: adminRoles[0]?.name ?? "Consulta",
     phone: "",
     company: adminCompany.name,
-    photoUrl: ""
+    photoUrl: "",
+    active: true,
+    mustChangePassword: false,
+    temporaryPassword: ""
   };
   const [draft, setDraft] = useState<UserDraft>(emptyDraft);
   const [editingId, setEditingId] = useState("");
+  const [message, setMessage] = useState("");
+  const [submitting, setSubmitting] = useState(false);
 
-  function submitUser(event: FormEvent<HTMLFormElement>) {
+  async function submitUser(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!draft.firstName.trim() || !draft.email.trim()) return;
 
+    setMessage("");
+    setSubmitting(true);
+    const fullName = [draft.firstName, draft.lastName].filter(Boolean).join(" ").trim();
+    const response = await fetch("/api/admin/users", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...(session?.access_token ? { Authorization: "Bearer " + session.access_token } : {})
+      },
+      body: JSON.stringify({
+        fullName,
+        email: draft.email,
+        role: draft.role,
+        active: draft.active,
+        temporaryPassword: draft.temporaryPassword
+      })
+    });
+    const result = await response.json().catch(() => ({}));
+    setSubmitting(false);
+
+    if (!response.ok) {
+      setMessage(result.error ?? "No fue posible activar el usuario en Supabase.");
+      return;
+    }
+
+    const userStatus: AdminUser["status"] = draft.active ? "Activo" : "Inactivo";
+    const localUser = {
+      firstName: draft.firstName,
+      lastName: draft.lastName,
+      email: draft.email,
+      position: draft.position,
+      role: draft.role,
+      phone: draft.phone,
+      company: draft.company,
+      photoUrl: draft.photoUrl,
+      active: draft.active,
+      id: result.id ?? editingId,
+      status: userStatus,
+      mustChangePassword: result.mustChangePassword ?? Boolean(draft.temporaryPassword)
+    };
+
     if (editingId) {
       const current = adminUsers.find((user) => user.id === editingId);
-      if (current) updateAdminUser({ ...current, ...draft, status: draft.role ? current.status : "Activo" });
+      if (current) updateAdminUser({ ...current, ...localUser });
     } else {
-      addAdminUser(draft);
+      addAdminUser(localUser);
     }
 
     setDraft(emptyDraft);
     setEditingId("");
+    setMessage("Usuario activado correctamente en Supabase Auth.");
   }
 
   function editUser(user: AdminUser) {
@@ -143,12 +192,29 @@ function UsersAdmin() {
       role: user.role,
       phone: user.phone,
       company: user.company,
-      photoUrl: user.photoUrl ?? ""
+      photoUrl: user.photoUrl ?? "",
+      active: user.active,
+      mustChangePassword: user.mustChangePassword ?? false,
+      temporaryPassword: ""
     });
   }
 
   function toggleUser(user: AdminUser) {
-    updateAdminUser({ ...user, active: !user.active, status: user.active ? "Inactivo" : "Activo" });
+    setDraft({
+      firstName: user.firstName,
+      lastName: user.lastName,
+      email: user.email,
+      position: user.position,
+      role: user.role,
+      phone: user.phone,
+      company: user.company,
+      photoUrl: user.photoUrl ?? "",
+      active: !user.active,
+      mustChangePassword: user.mustChangePassword ?? false,
+      temporaryPassword: ""
+    });
+    setEditingId(user.id);
+    setMessage("Revisa y guarda para " + (user.active ? "desactivar" : "activar") + " el usuario en Supabase.");
   }
 
   return (
@@ -161,17 +227,26 @@ function UsersAdmin() {
           <Field label="Correo" value={draft.email} type="email" onChange={(value) => setDraft({ ...draft, email: value })} />
           <Field label="Cargo" value={draft.position} onChange={(value) => setDraft({ ...draft, position: value })} />
           <label className={labelClass}>
+            Estado
+            <select value={draft.active ? "Activo" : "Inactivo"} onChange={(event) => setDraft({ ...draft, active: event.target.value === "Activo" })} className={inputClass}>
+              <option>Activo</option>
+              <option>Inactivo</option>
+            </select>
+          </label>
+          <label className={labelClass}>
             Rol
             <select value={draft.role} onChange={(event) => setDraft({ ...draft, role: event.target.value })} className={inputClass}>
               {adminRoles.map((role) => <option key={role.id}>{role.name}</option>)}
             </select>
           </label>
+          <Field label={editingId ? "Nueva contrasena temporal opcional" : "Contrasena temporal"} value={draft.temporaryPassword} type="password" onChange={(value) => setDraft({ ...draft, temporaryPassword: value, mustChangePassword: Boolean(value) })} />
           <Field label="Telefono" value={draft.phone} onChange={(value) => setDraft({ ...draft, phone: value })} />
           <Field label="Empresa" value={draft.company} onChange={(value) => setDraft({ ...draft, company: value })} />
           <Field label="Foto opcional" value={draft.photoUrl ?? ""} onChange={(value) => setDraft({ ...draft, photoUrl: value })} />
         </div>
+        {message && <p className="mt-4 rounded-md bg-dac-secondary/10 px-4 py-3 text-sm font-bold text-dac-primary">{message}</p>}
         <div className="mt-5 grid gap-2 sm:grid-cols-2">
-          <button type="submit" className="focus-ring rounded-md bg-dac-primary px-4 py-3 text-sm font-black text-white hover:bg-dac-secondary">{editingId ? "Guardar cambios" : "Crear usuario"}</button>
+          <button type="submit" disabled={submitting} className="focus-ring rounded-md bg-dac-primary px-4 py-3 text-sm font-black text-white hover:bg-dac-secondary disabled:cursor-not-allowed disabled:bg-dac-primary/40">{submitting ? "Guardando..." : editingId ? "Guardar cambios" : "Crear usuario"}</button>
           <button type="button" onClick={() => { setDraft(emptyDraft); setEditingId(""); }} className="focus-ring rounded-md border border-dac-primary px-4 py-3 text-sm font-black text-dac-primary hover:bg-dac-primary hover:text-white">Limpiar</button>
         </div>
       </form>
@@ -185,6 +260,7 @@ function UsersAdmin() {
                 <p className="mt-1 text-sm font-semibold text-dac-text/70">{user.position} - {user.role}</p>
                 <p className="mt-1 text-sm text-dac-text/60">{user.email} - {user.phone}</p>
                 <p className="mt-1 text-xs font-bold text-dac-text/50">{user.company} - Creado: {user.createdAt}</p>
+                {user.mustChangePassword && <p className="mt-1 text-xs font-black text-dac-alert">Debe cambiar contrasena en el proximo ingreso</p>}
               </div>
               <span className={(user.active ? "bg-dac-secondary/15 text-dac-primary" : "bg-dac-alert/15 text-dac-alert") + " rounded-full px-3 py-1 text-xs font-black"}>{user.status}</span>
             </div>

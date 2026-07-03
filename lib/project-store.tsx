@@ -100,7 +100,7 @@ type ProjectStoreValue = {
   upsertActivityPlanning: (planning: Omit<ActivityPlanning, "status">) => void;
   duplicateWeeklyPlanning: (fromWeekStart: string, toWeekStart: string) => void;
   updateAdminCompany: (company: AdminCompany) => void;
-  addAdminUser: (user: Omit<AdminUser, "id" | "createdAt" | "status" | "active">) => void;
+  addAdminUser: (user: Omit<AdminUser, "id" | "createdAt">) => void;
   updateAdminUser: (user: AdminUser) => void;
   deleteAdminUser: (id: string) => void;
   updateAdminRole: (role: AdminRole) => void;
@@ -602,8 +602,8 @@ export function ProjectStoreProvider({ children }: { children: ReactNode }) {
           ...user,
           id: "admin-user-" + Date.now(),
           createdAt: new Date().toISOString().slice(0, 10),
-          status: "Activo",
-          active: true
+          status: user.status,
+          active: user.active
         },
         ...current
       ]);

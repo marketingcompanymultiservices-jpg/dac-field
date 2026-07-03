@@ -297,6 +297,7 @@ export type AdminUser = {
   createdAt: string;
   active: boolean;
   photoUrl?: string;
+  mustChangePassword?: boolean;
 };
 
 export type AdminPermissionAction = "Ver" | "Crear" | "Editar" | "Eliminar" | "Exportar" | "Imprimir" | "Administrar";

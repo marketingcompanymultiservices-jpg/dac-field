@@ -17,12 +17,14 @@ type AuthContextValue = {
   loading: boolean;
   isConfigured: boolean;
   signIn: (email: string, password: string) => Promise<{ error?: string }>;
+  changePassword: (password: string) => Promise<{ error?: string }>;
   logout: () => Promise<void>;
   audit: (title: string, description: string) => void;
 };
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 const publicRoutes = ["/"];
+const passwordChangeRoute = "/change-password";
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const router = useRouter();
@@ -74,6 +76,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (!session) router.replace("/");
   }, [loading, pathname, router, session]);
 
+  useEffect(() => {
+    if (loading || !session || !profile?.mustChangePassword) return;
+    if (pathname !== passwordChangeRoute) router.replace(passwordChangeRoute);
+  }, [loading, pathname, profile?.mustChangePassword, router, session]);
+
   async function signIn(email: string, password: string) {
     if (!isSupabaseConfigured || !supabaseClient) return { error: "Supabase no está configurado." };
     const normalizedEmail = email.trim().toLowerCase();
@@ -101,6 +108,38 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       description: (data.user.email ?? normalizedEmail) + " inicio sesion con Supabase."
     });
     router.push("/dashboard");
+    return {};
+  }
+
+  async function changePassword(password: string) {
+    if (!isSupabaseConfigured || !supabaseClient || !user) return { error: "Supabase no estÃ¡ configurado." };
+    const normalizedPassword = password.trim();
+    if (normalizedPassword.length < 8) return { error: "La nueva contrasena debe tener minimo 8 caracteres." };
+
+    setLoading(true);
+    const { error } = await supabaseClient.auth.updateUser({ password: normalizedPassword });
+    if (error) {
+      setLoading(false);
+      return { error: error.message };
+    }
+
+    const { error: profileError } = await supabaseClient
+      .from("profiles")
+      .update({ must_change_password: false })
+      .eq("id", user.id);
+
+    if (profileError) {
+      setLoading(false);
+      return { error: profileError.message };
+    }
+
+    await syncProfile(user);
+    setLoading(false);
+    addSystemEvent({
+      title: "Usuario cambio contrasena temporal.",
+      description: (user.email ?? "Usuario") + " actualizo su contrasena inicial."
+    });
+    router.replace("/dashboard");
     return {};
   }
 
@@ -139,6 +178,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     loading,
     isConfigured: isSupabaseConfigured,
     signIn,
+    changePassword,
     logout,
     audit
   };
