@@ -17,18 +17,19 @@ export async function ensureUserProfile(user: User, localUsers: AdminUser[]) {
 
   const localUser = findLocalUserForEmail(user.email, localUsers);
   const fallbackName = user.email.split("@")[0] || "Usuario DAC";
+  const metadataMustChangePassword = Boolean(user.user_metadata?.must_change_password || user.user_metadata?.mustChangePassword || user.app_metadata?.must_change_password);
   const profilePayload = {
     id: user.id,
     nombre: localUser ? (localUser.firstName + " " + localUser.lastName).trim() : fallbackName,
     correo: user.email,
     rol: localUser?.role ?? "Consulta",
     activo: localUser?.active ?? true,
-    must_change_password: localUser?.mustChangePassword ?? false
+    must_change_password: metadataMustChangePassword || localUser?.mustChangePassword || false
   };
 
   const currentProfile = await selectProfile(user.id);
 
-  if (currentProfile) return currentProfile as SupabaseProfile;
+  if (currentProfile) return { ...currentProfile, must_change_password: currentProfile.must_change_password || metadataMustChangePassword } as SupabaseProfile;
 
   const { data, error } = await supabaseClient
     .from("profiles")
@@ -50,7 +51,7 @@ export async function ensureUserProfile(user: User, localUsers: AdminUser[]) {
       .select("id,nombre,correo,rol,activo,created_at")
       .single();
     if (fallbackError) throw fallbackError;
-    return { ...(fallbackData as SupabaseProfile), must_change_password: false };
+    return { ...(fallbackData as SupabaseProfile), must_change_password: metadataMustChangePassword };
   }
   return data as SupabaseProfile;
 }
