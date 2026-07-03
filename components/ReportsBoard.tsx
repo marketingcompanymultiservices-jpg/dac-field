@@ -19,6 +19,7 @@ export function ReportsBoard({ reportTypes }: { reportTypes: ReportType[] }) {
     photos,
     progressSummary,
     executiveSummary,
+    manualProgressChanges,
     addReport,
     deleteDraftReport
   } = useProjectStore();
@@ -42,7 +43,9 @@ export function ReportsBoard({ reportTypes }: { reportTypes: ReportType[] }) {
         executiveSummary.commitmentsPending +
         ". Avance: " +
         executiveSummary.progress.toFixed(1) +
-        " %."
+        " %. Actualizaciones manuales de avance: " +
+        manualProgressChanges.length +
+        "."
     });
     setMessage("Reporte generado correctamente.");
   }

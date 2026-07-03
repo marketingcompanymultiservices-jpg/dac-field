@@ -84,6 +84,20 @@ export type BudgetProgressItem = {
   pendingQuantity?: number;
 };
 
+export type ManualProgressChange = {
+  id: string;
+  activityId: string;
+  item: string;
+  description: string;
+  previousQuantity: number;
+  newQuantity: number;
+  difference: number;
+  user: string;
+  date: string;
+  observation: string;
+  origin: "Edición manual de avance";
+};
+
 export type BudgetItem = {
   id?: string;
   item: string;

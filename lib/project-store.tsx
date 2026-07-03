@@ -39,6 +39,7 @@ import type {
   DailyReportEntry,
   DashboardMetric,
   InitialSurveyMetadata,
+  ManualProgressChange,
   Project,
   ProjectDocument,
   ProjectReport,
@@ -57,6 +58,7 @@ type ProjectStoreValue = {
   budgetItems: BudgetItem[];
   budgetVersion: BudgetVersion | null;
   progressItems: BudgetProgressItem[];
+  manualProgressChanges: ManualProgressChange[];
   timeline: TimelineEvent[];
   reports: ProjectReport[];
   planningItems: ActivityPlanning[];
@@ -90,6 +92,7 @@ type ProjectStoreValue = {
   addReport: (report: ProjectReport) => void;
   deleteDraftReport: (id: string) => void;
   importBudget: (items: BudgetItem[], version: BudgetVersion) => void;
+  updateManualProgress: (change: Omit<ManualProgressChange, "id" | "date" | "origin">) => void;
   saveInitialSurvey: (items: BudgetItem[], metadata: InitialSurveyMetadata) => void;
   upsertActivityPlanning: (planning: Omit<ActivityPlanning, "status">) => void;
   duplicateWeeklyPlanning: (fromWeekStart: string, toWeekStart: string) => void;
@@ -115,6 +118,7 @@ export function ProjectStoreProvider({ children }: { children: ReactNode }) {
   const [documents, setDocuments] = useState<ProjectDocument[]>(documentItems);
   const [budgetItems, setBudgetItems] = useState<BudgetItem[]>(initialBudgetItems);
   const [budgetVersion, setBudgetVersion] = useState<BudgetVersion | null>(null);
+  const [manualProgressChanges, setManualProgressChanges] = useState<ManualProgressChange[]>([]);
   const [planningItems, setPlanningItems] = useState<ActivityPlanning[]>([]);
   const [initialSurvey, setInitialSurvey] = useState<InitialSurveyMetadata | null>(null);
   const [systemEvents, setSystemEvents] = useState<TimelineEvent[]>([]);
@@ -130,7 +134,7 @@ export function ProjectStoreProvider({ children }: { children: ReactNode }) {
   const [shouldPersist, setShouldPersist] = useState(false);
   const didHydrateRef = useRef(false);
 
-  const progressItems = useMemo(() => buildProgressFromActivities(budgetItems, activities), [activities, budgetItems]);
+  const progressItems = useMemo(() => buildProgressFromActivities(budgetItems, activities, manualProgressChanges), [activities, budgetItems, manualProgressChanges]);
   const progressSummary = useMemo(() => calculateProgressSummary(progressItems), [progressItems]);
   const project = useMemo(
     () => ({ ...projectBase, progress: Number(progressSummary.generalProgress.toFixed(1)) }),
@@ -267,6 +271,7 @@ export function ProjectStoreProvider({ children }: { children: ReactNode }) {
       setDocuments(storedState.documents);
       setBudgetItems(storedState.budgetItems ?? initialBudgetItems);
       setBudgetVersion(storedState.budgetVersion ?? null);
+      setManualProgressChanges(storedState.manualProgressChanges ?? []);
       setPlanningItems((storedState.planningItems ?? []).map((item) => ({ ...item, plannedQuantity: item.plannedQuantity ?? 0, status: "Pendiente" })));
       setInitialSurvey(storedState.initialSurvey ?? null);
       setSystemEvents(storedState.systemEvents ?? []);
@@ -299,6 +304,7 @@ export function ProjectStoreProvider({ children }: { children: ReactNode }) {
       documents,
       budgetItems,
       budgetVersion,
+      manualProgressChanges,
       planningItems,
       initialSurvey,
       systemEvents,
@@ -313,7 +319,7 @@ export function ProjectStoreProvider({ children }: { children: ReactNode }) {
     });
     setHasLocalData(true);
     setLastSavedAt(savedAt);
-  }, [activities, adminCompany, adminRoles, adminUsers, alertOverrides, budgetItems, budgetVersion, commitments, dailyReports, documents, initialSurvey, isHydrated, knownAlertIds, photos, planningItems, progressItems, project, reports, shouldPersist, systemEvents, timeline]);
+  }, [activities, adminCompany, adminRoles, adminUsers, alertOverrides, budgetItems, budgetVersion, commitments, dailyReports, documents, initialSurvey, isHydrated, knownAlertIds, manualProgressChanges, photos, planningItems, progressItems, project, reports, shouldPersist, systemEvents, timeline]);
 
   function resetDemoData() {
     clearAppState();
@@ -326,6 +332,7 @@ export function ProjectStoreProvider({ children }: { children: ReactNode }) {
     setDocuments(documentItems);
     setBudgetItems(initialBudgetItems);
     setBudgetVersion(null);
+    setManualProgressChanges([]);
     setPlanningItems([]);
     setInitialSurvey(null);
     setSystemEvents([]);
@@ -350,6 +357,7 @@ export function ProjectStoreProvider({ children }: { children: ReactNode }) {
     documents,
     budgetItems,
     budgetVersion,
+    manualProgressChanges,
     progressItems,
     planningItems,
     initialSurvey,
@@ -448,6 +456,27 @@ export function ProjectStoreProvider({ children }: { children: ReactNode }) {
       setInitialSurvey(null);
       setActivities([]);
       setPlanningItems([]);
+      setManualProgressChanges([]);
+    },
+    updateManualProgress(change) {
+      setShouldPersist(true);
+      const nextChange: ManualProgressChange = {
+        ...change,
+        id: "manual-progress-" + Date.now(),
+        date: new Date().toISOString(),
+        origin: "Edición manual de avance"
+      };
+      setManualProgressChanges((current) => [nextChange, ...current]);
+      setSystemEvents((current) => [
+        {
+          id: "event-manual-progress-" + Date.now(),
+          time: new Date().toTimeString().slice(0, 5),
+          title: "Se actualizo avance manual de la actividad " + change.item + " " + change.description + ".",
+          description: "Cantidad anterior: " + change.previousQuantity + ". Cantidad nueva: " + change.newQuantity + ". Observacion: " + (change.observation || "Sin observacion."),
+          source: "Sistema"
+        },
+        ...current
+      ]);
     },
     saveInitialSurvey(items, metadata) {
       setShouldPersist(true);

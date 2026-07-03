@@ -14,7 +14,7 @@ const currencyFormatter = new Intl.NumberFormat("es-CO", {
 });
 
 export default function ProjectBudgetPage() {
-  const { project, budgetItems, budgetVersion, progressItems, importBudget } = useProjectStore();
+  const { project, budgetItems, budgetVersion, progressItems, manualProgressChanges, importBudget, updateManualProgress } = useProjectStore();
   const totalBudget = budgetItems.reduce((sum, item) => sum + item.totalValue, 0);
 
   return (
@@ -35,7 +35,13 @@ export default function ProjectBudgetPage() {
       </div>
 
       <div className="mt-6">
-        <BudgetTable items={budgetItems} progressItems={progressItems} projectId={project.id} />
+        <BudgetTable
+          items={budgetItems}
+          progressItems={progressItems}
+          manualProgressChanges={manualProgressChanges}
+          projectId={project.id}
+          onUpdateManualProgress={updateManualProgress}
+        />
       </div>
     </PageShell>
   );

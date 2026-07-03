@@ -15,6 +15,7 @@ import type {
   ProjectDocument,
   ProjectReport,
   InitialSurveyMetadata,
+  ManualProgressChange,
   TimelineEvent
 } from "@/types";
 
@@ -42,6 +43,7 @@ export type PersistedAppState = {
   adminRoles?: AdminRole[];
   alertOverrides?: AlertOverride[];
   knownAlertIds?: string[];
+  manualProgressChanges?: ManualProgressChange[];
 };
 
 export function saveAppState(state: PersistedAppState) {

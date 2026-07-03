@@ -1,4 +1,4 @@
-import type { BudgetItem, BudgetProgressItem, DailyActivity, ProgressStatus } from "@/types";
+import type { BudgetItem, BudgetProgressItem, DailyActivity, ManualProgressChange, ProgressStatus } from "@/types";
 
 function normalize(value: string) {
   return value
@@ -14,7 +14,7 @@ export function getProgressStatus(progress: number): ProgressStatus {
   return "Sin iniciar";
 }
 
-export function buildProgressFromActivities(baseItems: BudgetItem[], activities: DailyActivity[]): BudgetProgressItem[] {
+export function buildProgressFromActivities(baseItems: BudgetItem[], activities: DailyActivity[], manualChanges: ManualProgressChange[] = []): BudgetProgressItem[] {
   return baseItems.map((item) => {
     const itemKey = normalize(item.description);
     const initialProgress = Math.min(Math.max(item.initialProgress ?? 0, 0), 100);
@@ -26,7 +26,12 @@ export function buildProgressFromActivities(baseItems: BudgetItem[], activities:
         return activityKey.includes(itemKey) || itemKey.includes(activityKey);
       })
       .reduce((sum, activity) => sum + activity.quantity, 0);
-    const cappedExecuted = Math.min(initialExecutedQuantity + executedQuantity, item.quantity);
+    const latestManualChange = manualChanges
+      .filter((change) => change.item === item.item || change.activityId === item.item)
+      .sort((a, b) => b.date.localeCompare(a.date))[0];
+    const calculatedExecuted = initialExecutedQuantity + executedQuantity;
+    const manualExecuted = latestManualChange?.newQuantity;
+    const cappedExecuted = Math.min(manualExecuted ?? calculatedExecuted, item.quantity);
     const progress = item.quantity === 0 ? 0 : Math.min(100, (cappedExecuted / item.quantity) * 100);
 
     return {

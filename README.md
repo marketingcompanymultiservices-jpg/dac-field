@@ -493,3 +493,19 @@ Integracion Supabase:
 - Politicas base: Administrador con acceso total, Director con lectura/escritura y Secretaria/Auxiliar Administrativa con lectura.
 - Variables requeridas: `NEXT_PUBLIC_SUPABASE_URL` y `NEXT_PUBLIC_SUPABASE_ANON_KEY`.
 - No se modifico la interfaz ni se migraron datos de proyectos, presupuesto, avance, reportes o documentos.
+
+## Sprint 5.3
+
+Edicion de avance y cantidades del presupuesto:
+
+- El modulo Presupuesto agrega modo de edicion por actividad.
+- Campos editables: cantidad ejecutada acumulada, responsable de actualizacion y observacion.
+- Campos contractuales bloqueados: ITEM, descripcion, unidad, cantidad contratada, valor unitario y valor total.
+- Al guardar se recalculan cantidad pendiente, porcentaje ejecutado, valor ejecutado, valor pendiente y estado.
+- Validaciones para impedir valores negativos, no numericos o mayores que la cantidad contratada.
+- Avance se actualiza automaticamente con las cantidades editadas desde el Presupuesto Maestro.
+- Cada edicion genera historial de cambios con cantidad anterior, cantidad nueva, diferencia, usuario, fecha, observacion y origen.
+- Presupuesto incluye seccion `Historial de cambios de avance`.
+- Bitacora registra el evento de actualizacion manual de avance.
+- Reportes incorpora el conteo de actualizaciones manuales en el resumen de avance.
+- La persistencia se mantiene en Store Global y `localStorage`; no se migra informacion a Supabase en este sprint.

@@ -1,10 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { Fragment, useMemo, useState } from "react";
 import { BudgetFilters, type BudgetFilterState } from "@/components/BudgetFilters";
+import { useAuth } from "@/components/AuthProvider";
 import { getProgressStatus } from "@/lib/progress";
-import type { BudgetItem, BudgetProgressItem } from "@/types";
+import type { BudgetItem, BudgetProgressItem, ManualProgressChange } from "@/types";
 
 const currencyFormatter = new Intl.NumberFormat("es-CO", {
   style: "currency",
@@ -21,8 +22,26 @@ const initialFilters: BudgetFilterState = {
   search: ""
 };
 
-export function BudgetTable({ items, progressItems, projectId = "quintas-de-acuarela" }: { items: BudgetItem[]; progressItems: BudgetProgressItem[]; projectId?: string }) {
+export function BudgetTable({
+  items,
+  progressItems,
+  manualProgressChanges,
+  projectId = "quintas-de-acuarela",
+  onUpdateManualProgress
+}: {
+  items: BudgetItem[];
+  progressItems: BudgetProgressItem[];
+  manualProgressChanges: ManualProgressChange[];
+  projectId?: string;
+  onUpdateManualProgress: (change: Omit<ManualProgressChange, "id" | "date" | "origin">) => void;
+}) {
+  const { profile, user } = useAuth();
   const [filters, setFilters] = useState<BudgetFilterState>(initialFilters);
+  const [editingItem, setEditingItem] = useState("");
+  const [executedDraft, setExecutedDraft] = useState("");
+  const [observationDraft, setObservationDraft] = useState("");
+  const [responsibleDraft, setResponsibleDraft] = useState("");
+  const [message, setMessage] = useState("");
   const progressByItem = useMemo(() => new Map(progressItems.map((item) => [item.item, item])), [progressItems]);
 
   const filteredItems = useMemo(() => {
@@ -42,8 +61,63 @@ export function BudgetTable({ items, progressItems, projectId = "quintas-de-acua
     });
   }, [filters, items, progressByItem]);
 
+  function startEditing(item: BudgetItem) {
+    const progressItem = progressByItem.get(item.item);
+    setEditingItem(item.item);
+    setExecutedDraft(String(progressItem?.executedQuantity ?? 0));
+    setObservationDraft("");
+    setResponsibleDraft(profile ? (profile.firstName + " " + profile.lastName).trim() : user?.email ?? "");
+    setMessage("");
+  }
+
+  function cancelEditing() {
+    setEditingItem("");
+    setExecutedDraft("");
+    setObservationDraft("");
+    setResponsibleDraft("");
+    setMessage("");
+  }
+
+  function saveEditing(item: BudgetItem) {
+    const progressItem = progressByItem.get(item.item);
+    const previousQuantity = progressItem?.executedQuantity ?? 0;
+    const nextQuantity = Number(executedDraft);
+
+    if (!Number.isFinite(nextQuantity)) {
+      setMessage("La cantidad ejecutada acumulada debe ser un valor numerico.");
+      return;
+    }
+
+    if (nextQuantity < 0) {
+      setMessage("La cantidad ejecutada acumulada no puede ser negativa.");
+      return;
+    }
+
+    if (nextQuantity > item.quantity) {
+      setMessage("La cantidad ejecutada acumulada no puede superar la cantidad contratada.");
+      return;
+    }
+
+    onUpdateManualProgress({
+      activityId: item.item,
+      item: item.item,
+      description: item.description,
+      previousQuantity,
+      newQuantity: nextQuantity,
+      difference: nextQuantity - previousQuantity,
+      user: responsibleDraft.trim() || profile?.email || user?.email || "Usuario DAC",
+      observation: observationDraft.trim()
+    });
+    setMessage("Avance manual actualizado correctamente.");
+    setEditingItem("");
+    setExecutedDraft("");
+    setObservationDraft("");
+    setResponsibleDraft("");
+  }
+
   return (
-    <section className="rounded-lg border border-dac-primary/15 bg-white shadow-panel">
+    <section className="grid gap-6">
+    <div className="rounded-lg border border-dac-primary/15 bg-white shadow-panel">
       <div className="border-b border-dac-primary/10 p-4 sm:p-5">
         <div className="flex flex-col gap-4">
           <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
@@ -55,6 +129,7 @@ export function BudgetTable({ items, progressItems, projectId = "quintas-de-acua
           </div>
 
           <BudgetFilters items={items} filters={filters} onChange={setFilters} />
+          {message && <p className="rounded-md bg-dac-secondary/10 px-4 py-3 text-sm font-black text-dac-primary">{message}</p>}
         </div>
       </div>
 
@@ -76,6 +151,7 @@ export function BudgetTable({ items, progressItems, projectId = "quintas-de-acua
               const status = getProgressStatus(progress);
 
               return (
+                <Fragment key={item.item}>
                 <tr key={item.item} className="border-b border-dac-primary/10 align-top last:border-b-0">
                   <td className="px-4 py-4 text-sm font-black text-dac-primary">{item.item}</td>
                   <td className="px-4 py-4">
@@ -92,13 +168,87 @@ export function BudgetTable({ items, progressItems, projectId = "quintas-de-acua
                   <td className="px-4 py-4 text-sm font-semibold">{item.chapter}</td>
                   <td className="px-4 py-4 text-sm font-semibold">{item.subchapter}</td>
                   <td className="px-4 py-4">
-                    <Link href={"/projects/" + projectId + "/activities/" + encodeURIComponent(item.item)} className="focus-ring inline-flex rounded-md bg-dac-primary px-3 py-2 text-xs font-black text-white hover:bg-dac-secondary">
-                      Ver actividad
-                    </Link>
+                    <div className="grid gap-2">
+                      <Link href={"/projects/" + projectId + "/activities/" + encodeURIComponent(item.item)} className="focus-ring inline-flex rounded-md bg-dac-primary px-3 py-2 text-center text-xs font-black text-white hover:bg-dac-secondary">
+                        Ver actividad
+                      </Link>
+                      <button type="button" onClick={() => startEditing(item)} className="focus-ring rounded-md border border-dac-primary px-3 py-2 text-xs font-black text-dac-primary hover:bg-dac-secondary/10">
+                        Editar avance
+                      </button>
+                    </div>
                   </td>
                 </tr>
+                {editingItem === item.item && (
+                  <tr className="border-b border-dac-primary/10 bg-dac-primary/[0.03]">
+                    <td colSpan={13} className="px-4 py-5">
+                      <div className="grid gap-4 lg:grid-cols-[1fr_1fr_1fr_auto]">
+                        <label className="block text-sm font-black text-dac-text">
+                          Cantidad ejecutada acumulada
+                          <input value={executedDraft} onChange={(event) => setExecutedDraft(event.target.value)} className="focus-ring mt-2 w-full rounded-md border border-dac-primary/20 bg-white px-3 py-3 text-sm font-semibold outline-none" />
+                        </label>
+                        <label className="block text-sm font-black text-dac-text">
+                          Responsable de actualizacion
+                          <input value={responsibleDraft} onChange={(event) => setResponsibleDraft(event.target.value)} className="focus-ring mt-2 w-full rounded-md border border-dac-primary/20 bg-white px-3 py-3 text-sm font-semibold outline-none" />
+                        </label>
+                        <label className="block text-sm font-black text-dac-text">
+                          Observacion de actualizacion
+                          <input value={observationDraft} onChange={(event) => setObservationDraft(event.target.value)} className="focus-ring mt-2 w-full rounded-md border border-dac-primary/20 bg-white px-3 py-3 text-sm font-semibold outline-none" />
+                        </label>
+                        <div className="grid gap-2 self-end sm:grid-cols-2 lg:grid-cols-1">
+                          <button type="button" onClick={() => saveEditing(item)} className="focus-ring rounded-md bg-dac-primary px-4 py-3 text-sm font-black text-white hover:bg-dac-secondary">Guardar</button>
+                          <button type="button" onClick={cancelEditing} className="focus-ring rounded-md border border-dac-alert px-4 py-3 text-sm font-black text-dac-alert hover:bg-dac-alert hover:text-white">Cancelar</button>
+                        </div>
+                      </div>
+                    </td>
+                  </tr>
+                )}
+                </Fragment>
               );
             })}
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <ProgressChangeHistory changes={manualProgressChanges} />
+    </section>
+  );
+}
+
+function ProgressChangeHistory({ changes }: { changes: ManualProgressChange[] }) {
+  return (
+    <section className="rounded-lg border border-dac-primary/15 bg-white p-4 shadow-panel sm:p-5">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <p className="text-sm font-black uppercase text-dac-secondary">Historial de cambios de avance</p>
+          <h2 className="text-xl font-black text-dac-primary">Ediciones manuales</h2>
+        </div>
+        <p className="text-sm font-black text-dac-primary">{changes.length} registros</p>
+      </div>
+      <div className="mt-4 overflow-x-auto">
+        <table className="w-full min-w-[860px] border-collapse text-left">
+          <thead className="bg-dac-primary text-white">
+            <tr>
+              {["FECHA", "USUARIO", "ACTIVIDAD", "CANT. ANTERIOR", "CANT. NUEVA", "OBSERVACION"].map((header) => (
+                <th key={header} className="px-4 py-3 text-xs font-black uppercase">{header}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {changes.map((change) => (
+              <tr key={change.id} className="border-b border-dac-primary/10 last:border-b-0">
+                <td className="px-4 py-4 text-sm font-semibold">{new Date(change.date).toLocaleString("es-CO")}</td>
+                <td className="px-4 py-4 text-sm font-semibold">{change.user}</td>
+                <td className="px-4 py-4 text-sm font-black text-dac-primary">{change.item} - {change.description}</td>
+                <td className="px-4 py-4 text-sm font-semibold">{numberFormatter.format(change.previousQuantity)}</td>
+                <td className="px-4 py-4 text-sm font-semibold">{numberFormatter.format(change.newQuantity)}</td>
+                <td className="px-4 py-4 text-sm font-semibold">{change.observation || "Sin observacion"}</td>
+              </tr>
+            ))}
+            {changes.length === 0 && (
+              <tr>
+                <td colSpan={6} className="px-4 py-5 text-sm font-semibold text-dac-text/60">Aun no hay cambios manuales de avance.</td>
+              </tr>
+            )}
           </tbody>
         </table>
       </div>
