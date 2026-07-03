@@ -3,17 +3,21 @@
 import Link from "next/link";
 import { DailyReportView } from "@/components/DailyReportView";
 import { PageShell } from "@/components/PageShell";
+import { useAuth } from "@/components/AuthProvider";
 import { useProjectStore } from "@/lib/project-store";
 
 export default function DailyReportDetailPage({ params }: { params: { projectId: string; reportId: string } }) {
+  const { audit, user } = useAuth();
   const { project, dailyReports, activities, commitments, photos } = useProjectStore();
   const report = dailyReports.find((item) => item.id === params.reportId);
 
   function printReport() {
+    audit("Usuario imprimio reporte.", (user?.email ?? "Usuario") + " imprimio el reporte diario " + params.reportId + ".");
     window.print();
   }
 
   function simulatePdf() {
+    audit("Usuario descargo informe.", (user?.email ?? "Usuario") + " solicito descarga PDF del reporte diario " + params.reportId + ".");
     window.alert("Exportacion PDF real disponible en Sprint futuro.");
   }
 

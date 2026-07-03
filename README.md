@@ -460,3 +460,36 @@ Preparacion DAC Field v1.0.0:
 - Boton `Exportar configuracion` genera un JSON con la configuracion de la aplicacion y capacidades locales.
 - Documentacion de salida en `docs/v1-release.md`.
 - No se implementa backend ni Supabase; la aplicacion queda preparada para publicacion futura.
+
+## Sprint 5.1
+
+Supabase + Login Real + Roles Iniciales:
+
+- Cliente Supabase creado en `lib/supabaseClient.ts`.
+- Variables agregadas a `.env.example`: `NEXT_PUBLIC_SUPABASE_URL` y `NEXT_PUBLIC_SUPABASE_ANON_KEY`.
+- `AuthProvider` creado en `components/AuthProvider.tsx`.
+- Login simulado reemplazado por login real con Supabase Auth.
+- Si Supabase no esta configurado, el login muestra `Supabase no está configurado.`
+- Rutas internas protegidas: sin sesion activa redirigen a `/`.
+- Header actualizado para mostrar usuario autenticado real y rol local.
+- Logout real con Supabase.
+- Roles base: Administrador, Director Administrativo, Residente de Obra, Interventoria, Supervisor Tecnico, Auxiliar Administrativa y Consulta.
+- Usuarios iniciales preparados: Jose, Hernan, Oscar, Oliver y Juliana.
+- Permisos de Auxiliar Administrativa limitados a ver, descargar/imprimir reportes y exportar documentos.
+- Auditoria local en Bitacora para inicio/cierre de sesion, descarga de informe, impresion de reporte y exportacion de documento.
+- Se mantienen mocks temporales para proyectos, presupuesto, avance, reportes y documentos.
+
+## Sprint 5.2
+
+Integracion Supabase:
+
+- Clientes Supabase separados para navegador y servidor en `lib/supabase/browser.ts` y `lib/supabase/server.ts`.
+- Compatibilidad conservada en `lib/supabaseClient.ts`.
+- Helper `lib/supabase/profiles.ts` para crear el perfil del usuario despues del primer inicio de sesion.
+- `AuthProvider` sincroniza el usuario autenticado con `public.profiles`.
+- Migracion SQL generada en `database/sprint-5-2-profiles.sql`.
+- Tabla `profiles`: id, nombre, correo, rol, activo y created_at.
+- RLS habilitado para `profiles`.
+- Politicas base: Administrador con acceso total, Director con lectura/escritura y Secretaria/Auxiliar Administrativa con lectura.
+- Variables requeridas: `NEXT_PUBLIC_SUPABASE_URL` y `NEXT_PUBLIC_SUPABASE_ANON_KEY`.
+- No se modifico la interfaz ni se migraron datos de proyectos, presupuesto, avance, reportes o documentos.

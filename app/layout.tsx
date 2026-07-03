@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { AuthProvider } from "@/components/AuthProvider";
 import { ProjectStoreProvider } from "@/lib/project-store";
 import "../styles/globals.css";
 
@@ -18,7 +19,9 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
   return (
     <html lang="es">
       <body>
-        <ProjectStoreProvider>{children}</ProjectStoreProvider>
+        <ProjectStoreProvider>
+          <AuthProvider>{children}</AuthProvider>
+        </ProjectStoreProvider>
       </body>
     </html>
   );

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { AppBrand } from "@/components/AppBrand";
+import { useAuth } from "@/components/AuthProvider";
 import { getVersionLabel } from "@/lib/appConfig";
 import { getEnvironment } from "@/lib/environment";
 import { useProjectStore } from "@/lib/project-store";
@@ -26,6 +27,9 @@ export function PageShell({
   backLabel?: string;
 }) {
   const { adminCompany, currentUser, hasLocalData, isHydrated, lastSavedAt } = useProjectStore();
+  const { logout, profile, user } = useAuth();
+  const displayName = profile ? profile.firstName + " " + profile.lastName : user?.email ?? currentUser.firstName + " " + currentUser.lastName;
+  const displayRole = profile?.role ?? currentUser.role;
   const environment = getEnvironment();
   const navigation: NavItem[] = [
     { label: "Dashboard", href: "/dashboard" },
@@ -54,21 +58,21 @@ export function PageShell({
               <Link href="/dashboard" className="focus-ring rounded-md">
                 <AppBrand />
               </Link>
-              <Link href="/" className="focus-ring rounded-md border border-dac-primary/20 px-4 py-2 text-sm font-bold text-dac-primary hover:bg-dac-primary hover:text-white lg:hidden">
+              <button type="button" onClick={logout} className="focus-ring rounded-md border border-dac-primary/20 px-4 py-2 text-sm font-bold text-dac-primary hover:bg-dac-primary hover:text-white lg:hidden">
                 Salir
-              </Link>
+              </button>
             </div>
 
             <div className="flex flex-col gap-3 lg:items-end">
               <div className="hidden items-center gap-3 lg:flex">
                 <StorageIndicator hasLocalData={hasLocalData} isHydrated={isHydrated} lastSavedAt={lastSavedAt} />
                 <div className="text-right">
-                  <p className="text-sm font-black text-dac-primary">{currentUser.firstName} {currentUser.lastName}</p>
-                  <p className="text-xs font-semibold text-dac-text/60">{currentUser.role} - {adminCompany.name}</p>
+                  <p className="text-sm font-black text-dac-primary">{displayName}</p>
+                  <p className="text-xs font-semibold text-dac-text/60">{displayRole} - {adminCompany.name}</p>
                 </div>
-                <Link href="/" className="focus-ring rounded-md border border-dac-primary/20 px-4 py-2 text-sm font-bold text-dac-primary hover:bg-dac-primary hover:text-white">
+                <button type="button" onClick={logout} className="focus-ring rounded-md border border-dac-primary/20 px-4 py-2 text-sm font-bold text-dac-primary hover:bg-dac-primary hover:text-white">
                   Salir
-                </Link>
+                </button>
               </div>
 
               <nav aria-label="Navegacion principal" className="-mx-1 overflow-x-auto pb-1">
@@ -82,8 +86,8 @@ export function PageShell({
               </nav>
 
               <div className="rounded-md bg-dac-primary/[0.04] px-3 py-2 lg:hidden">
-                <p className="text-sm font-black text-dac-primary">{currentUser.firstName} {currentUser.lastName}</p>
-                <p className="text-xs font-semibold text-dac-text/60">{currentUser.role}</p>
+                <p className="text-sm font-black text-dac-primary">{displayName}</p>
+                <p className="text-xs font-semibold text-dac-text/60">{displayRole}</p>
                 <p className="text-xs font-semibold text-dac-text/60">{adminCompany.name}</p>
                 <StorageIndicator hasLocalData={hasLocalData} isHydrated={isHydrated} lastSavedAt={lastSavedAt} compact />
               </div>

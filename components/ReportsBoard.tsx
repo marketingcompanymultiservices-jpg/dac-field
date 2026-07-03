@@ -5,10 +5,12 @@ import { ReportCard } from "@/components/ReportCard";
 import { ReportFilter, ReportFilters, reportMatchesFilter } from "@/components/ReportFilters";
 import { ReportGenerator } from "@/components/ReportGenerator";
 import { ReportSummary } from "@/components/ReportSummary";
+import { useAuth } from "@/components/AuthProvider";
 import { useProjectStore } from "@/lib/project-store";
 import type { ProjectReport, ReportType } from "@/types";
 
 export function ReportsBoard({ reportTypes }: { reportTypes: ReportType[] }) {
+  const { audit, user } = useAuth();
   const {
     reports,
     dailyReports,
@@ -45,7 +47,8 @@ export function ReportsBoard({ reportTypes }: { reportTypes: ReportType[] }) {
     setMessage("Reporte generado correctamente.");
   }
 
-  function simulateDownload() {
+  function simulateDownload(report: ProjectReport) {
+    audit("Usuario descargo informe.", (user?.email ?? "Usuario") + " descargo el informe " + report.name + ".");
     setMessage("Descarga simulada.");
   }
 

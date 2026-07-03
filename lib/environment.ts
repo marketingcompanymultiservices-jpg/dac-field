@@ -15,8 +15,8 @@ export function getEnvironment(): PublicEnvironment {
     version: process.env.NEXT_PUBLIC_VERSION ?? appConfig.version,
     environment: process.env.NEXT_PUBLIC_ENV ?? appConfig.environment,
     company: process.env.NEXT_PUBLIC_COMPANY ?? appConfig.company,
-    supabaseUrl: process.env.SUPABASE_URL ?? "",
-    supabaseAnonKey: process.env.SUPABASE_ANON_KEY ?? ""
+    supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL ?? process.env.SUPABASE_URL ?? "",
+    supabaseAnonKey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? process.env.SUPABASE_ANON_KEY ?? ""
   };
 }
 

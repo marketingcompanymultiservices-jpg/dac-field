@@ -28,7 +28,7 @@ export const permissionModules: AdminPermissionModule[] = [
   "Administracion"
 ];
 
-export const permissionActions: AdminPermissionAction[] = ["Ver", "Crear", "Editar", "Eliminar", "Exportar", "Administrar"];
+export const permissionActions: AdminPermissionAction[] = ["Ver", "Crear", "Editar", "Eliminar", "Exportar", "Imprimir", "Administrar"];
 
 function buildPermissionMatrix(enabledActions: AdminPermissionAction[] = ["Ver"]): AdminPermissionMatrix {
   return Object.fromEntries(
@@ -37,6 +37,15 @@ function buildPermissionMatrix(enabledActions: AdminPermissionAction[] = ["Ver"]
       Object.fromEntries(permissionActions.map((action) => [action, enabledActions.includes(action)]))
     ])
   ) as AdminPermissionMatrix;
+}
+
+function buildAuxiliaryPermissionMatrix(): AdminPermissionMatrix {
+  const matrix = buildPermissionMatrix(["Ver"]);
+  matrix.Reportes.Exportar = true;
+  matrix.Reportes.Imprimir = true;
+  matrix.Documentos.Exportar = true;
+  matrix.Documentos.Imprimir = true;
+  return matrix;
 }
 
 export const adminCompany: AdminCompany = {
@@ -57,8 +66,8 @@ export const adminUsers: AdminUser[] = [
     firstName: "Jose",
     lastName: "Martinez",
     email: "jose@doblealtura.com",
-    position: "Director",
-    role: "Administrador",
+    position: "Director Administrativo",
+    role: "Director Administrativo",
     status: "Activo",
     phone: "+57 300 111 2233",
     company: "Doble Altura Construcciones S.A.S.",
@@ -70,8 +79,8 @@ export const adminUsers: AdminUser[] = [
     firstName: "Hernan",
     lastName: "Aristizabal",
     email: "hernan@doblealtura.com",
-    position: "Residente",
-    role: "Residente",
+    position: "Residente de Obra",
+    role: "Residente de Obra",
     status: "Activo",
     phone: "+57 300 222 3344",
     company: "Doble Altura Construcciones S.A.S.",
@@ -103,15 +112,29 @@ export const adminUsers: AdminUser[] = [
     company: "Doble Altura Construcciones S.A.S.",
     createdAt: "2026-07-01",
     active: true
+  },
+  {
+    id: "user-juliana-auxiliar",
+    firstName: "Juliana",
+    lastName: "",
+    email: "juliana@doblealtura.com",
+    position: "Auxiliar Administrativa",
+    role: "Auxiliar Administrativa",
+    status: "Activo",
+    phone: "+57 300 555 6677",
+    company: "Doble Altura Construcciones S.A.S.",
+    createdAt: "2026-07-02",
+    active: true
   }
 ];
 
 export const adminRoles: AdminRole[] = [
   { id: "role-admin", name: "Administrador", description: "Control total de la plataforma y configuracion.", permissions: buildPermissionMatrix(permissionActions) },
-  { id: "role-director", name: "Director", description: "Gestion integral de obra, reportes y seguimiento directivo.", permissions: buildPermissionMatrix(["Ver", "Crear", "Editar", "Exportar"]) },
-  { id: "role-residente", name: "Residente", description: "Registro diario, bitacora, fotografias y compromisos operativos.", permissions: buildPermissionMatrix(["Ver", "Crear", "Editar"]) },
+  { id: "role-director-administrativo", name: "Director Administrativo", description: "Gestion integral administrativa, reportes, seguimiento directivo y control de usuarios.", permissions: buildPermissionMatrix(["Ver", "Crear", "Editar", "Exportar", "Imprimir"]) },
+  { id: "role-residente-obra", name: "Residente de Obra", description: "Registro diario, bitacora, fotografias y compromisos operativos.", permissions: buildPermissionMatrix(["Ver", "Crear", "Editar", "Imprimir"]) },
   { id: "role-interventoria", name: "Interventoria", description: "Consulta, observaciones y seguimiento documental.", permissions: buildPermissionMatrix(["Ver", "Crear", "Exportar"]) },
   { id: "role-supervisor", name: "Supervisor Tecnico", description: "Revision tecnica de avance, presupuesto y actividades.", permissions: buildPermissionMatrix(["Ver", "Editar"]) },
+  { id: "role-auxiliar-administrativa", name: "Auxiliar Administrativa", description: "Puede ver informacion, descargar informes, imprimir reportes y exportar documentos. No puede eliminar, modificar presupuestos, crear obras, aprobar compras, cambiar usuarios ni configuracion.", permissions: buildAuxiliaryPermissionMatrix() },
   { id: "role-consulta", name: "Consulta", description: "Acceso de lectura para seguimiento sin modificacion.", permissions: buildPermissionMatrix(["Ver"]) }
 ];
 

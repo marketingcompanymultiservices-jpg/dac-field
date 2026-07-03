@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useAuth } from "@/components/AuthProvider";
 import { parseBudgetExcel, type ParsedBudgetExcel } from "@/lib/excelBudgetParser";
 import type { BudgetItem, BudgetVersion } from "@/types";
 
@@ -18,6 +19,7 @@ const currencyFormatter = new Intl.NumberFormat("es-CO", {
 const numberFormatter = new Intl.NumberFormat("es-CO");
 
 export function BudgetImportCard({ budgetVersion, onImportBudget }: BudgetImportCardProps) {
+  const { audit, user } = useAuth();
   const [parsedBudget, setParsedBudget] = useState<ParsedBudgetExcel | null>(null);
   const [lastImportedVersion, setLastImportedVersion] = useState<BudgetVersion | null>(null);
   const [isReading, setIsReading] = useState(false);
@@ -76,6 +78,7 @@ export function BudgetImportCard({ budgetVersion, onImportBudget }: BudgetImport
   }
 
   function handleExport() {
+    audit("Usuario exporto documento.", (user?.email ?? "Usuario") + " exporto el presupuesto.");
     window.alert("Exportacion de presupuesto simulada.");
   }
 

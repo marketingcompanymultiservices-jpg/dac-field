@@ -265,7 +265,7 @@ export type AdminUser = {
   photoUrl?: string;
 };
 
-export type AdminPermissionAction = "Ver" | "Crear" | "Editar" | "Eliminar" | "Exportar" | "Administrar";
+export type AdminPermissionAction = "Ver" | "Crear" | "Editar" | "Eliminar" | "Exportar" | "Imprimir" | "Administrar";
 
 export type AdminPermissionModule =
   | "Dashboard"

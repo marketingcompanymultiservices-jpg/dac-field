@@ -5,6 +5,7 @@ import type { ReactNode } from "react";
 import { useMemo, useState } from "react";
 import { ModuleHeader } from "@/components/ModuleHeader";
 import { PageShell } from "@/components/PageShell";
+import { useAuth } from "@/components/AuthProvider";
 import { appConfig } from "@/lib/appConfig";
 import { getEnvironment } from "@/lib/environment";
 import { useProjectStore } from "@/lib/project-store";
@@ -42,6 +43,7 @@ const mainRoutes = [
 ] as const;
 
 export function SystemHealthPanel() {
+  const { audit, user } = useAuth();
   const store = useProjectStore();
   const environment = getEnvironment();
   const [progress, setProgress] = useState(0);
@@ -90,6 +92,7 @@ export function SystemHealthPanel() {
     anchor.download = "dac-field-config.json";
     anchor.click();
     URL.revokeObjectURL(url);
+    audit("Usuario exporto documento.", (user?.email ?? "Usuario") + " exporto la configuracion del sistema.");
   }
 
   return (
