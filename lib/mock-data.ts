@@ -25,6 +25,7 @@ export const permissionModules: AdminPermissionModule[] = [
   "Documentos",
   "Compromisos",
   "Levantamiento Inicial",
+  "Inspecciones de Direccion",
   "Administracion"
 ];
 
@@ -63,6 +64,8 @@ function buildResidentPermissionMatrix(): AdminPermissionMatrix {
   matrix.Documentos.Ver = true;
   matrix.Documentos.Crear = true;
   matrix["Levantamiento Inicial"].Ver = true;
+  matrix["Inspecciones de Direccion"].Ver = true;
+  matrix["Inspecciones de Direccion"].Editar = true;
   return matrix;
 }
 

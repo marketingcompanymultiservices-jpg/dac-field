@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import Link from "next/link";
 import { HeaderMetric, ModuleHeader } from "@/components/ModuleHeader";
@@ -12,7 +12,8 @@ const actions = [
   ["Bitacora", "bitacora"],
   ["Presupuesto", "budget"],
   ["Levantamiento Inicial", "initial-survey"],
-  ["Planificación", "planning"],
+  ["Inspecciones de Dirección", "direction-inspections"],
+  ["PlanificaciÃ³n", "planning"],
   ["Avance", "progress"],
   ["Alertas", "alerts"],
   ["Documentos", "documents"],
@@ -58,3 +59,5 @@ export default function ProjectControlPage() {
     </PageShell>
   );
 }
+
+

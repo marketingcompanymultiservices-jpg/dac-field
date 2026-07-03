@@ -12,6 +12,7 @@ import type {
   DailyActivity,
   DailyPhoto,
   DailyReportEntry,
+  DirectionInspection,
   Project,
   ProjectDocument,
   ProjectReport,
@@ -46,6 +47,7 @@ export type PersistedAppState = {
   knownAlertIds?: string[];
   manualProgressChanges?: ManualProgressChange[];
   budgetQuantityChanges?: BudgetQuantityChange[];
+  directionInspections?: DirectionInspection[];
 };
 
 export function saveAppState(state: PersistedAppState) {

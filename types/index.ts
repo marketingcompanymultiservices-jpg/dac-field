@@ -185,6 +185,8 @@ export type DailyPhoto = {
   activityId?: string;
   reportId?: string;
   dailyReportId?: string;
+  inspectionId?: string;
+  inspectionPhotoType?: "observacion" | "correccion";
   type?: string;
   size?: number;
   storage?: "indexedDB" | "localStorage";
@@ -312,6 +314,7 @@ export type AdminPermissionModule =
   | "Documentos"
   | "Compromisos"
   | "Levantamiento Inicial"
+  | "Inspecciones de Direccion"
   | "Administracion";
 
 export type AdminPermissionMatrix = Record<AdminPermissionModule, Record<AdminPermissionAction, boolean>>;
@@ -321,4 +324,56 @@ export type AdminRole = {
   name: string;
   description: string;
   permissions: AdminPermissionMatrix;
+};
+
+export type DirectionInspectionStatus = "Pendiente" | "En proceso" | "Atendida" | "Cerrada";
+
+export type DirectionInspectionPriority = "Baja" | "Media" | "Alta" | "Critica";
+
+export type DirectionInspectionCategory =
+  | "Estructural"
+  | "Arquitectonica"
+  | "Calidad"
+  | "Seguridad y Salud en el Trabajo"
+  | "Programacion"
+  | "Materiales"
+  | "Equipos"
+  | "Ambiental"
+  | "Administrativa"
+  | "Otra";
+
+export type DirectionInspectionHistory = {
+  id: string;
+  user: string;
+  date: string;
+  action: string;
+  detail: string;
+};
+
+export type DirectionInspection = {
+  id: string;
+  projectId: string;
+  projectName: string;
+  createdAt: string;
+  createdBy: string;
+  director: string;
+  responsible: string;
+  status: DirectionInspectionStatus;
+  tower: string;
+  floor: string;
+  apartment?: string;
+  workFront: string;
+  category: DirectionInspectionCategory;
+  priority: DirectionInspectionPriority;
+  description: string;
+  dueDate: string;
+  commitmentNotes: string;
+  observationPhotoIds: string[];
+  response?: string;
+  attendedAt?: string;
+  correctionPhotoIds: string[];
+  closedAt?: string;
+  updatedAt: string;
+  updatedBy: string;
+  history: DirectionInspectionHistory[];
 };

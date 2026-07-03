@@ -22,6 +22,8 @@ export type ImageMetadataInput = {
   activityId?: string;
   reportId?: string;
   dailyReportId?: string;
+  inspectionId?: string;
+  inspectionPhotoType?: "observacion" | "correccion";
 };
 
 export function validateImageFile(file: File) {
@@ -62,6 +64,8 @@ export async function saveImage(file: File, metadata: ImageMetadataInput): Promi
     activityId: metadata.activityId,
     reportId: metadata.reportId,
     dailyReportId: metadata.dailyReportId ?? metadata.reportId,
+    inspectionId: metadata.inspectionId,
+    inspectionPhotoType: metadata.inspectionPhotoType,
     type: file.type,
     size: file.size,
     storage: "indexedDB"

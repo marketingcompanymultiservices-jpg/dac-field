@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import Link from "next/link";
 import type { ReactNode } from "react";
@@ -39,7 +39,8 @@ export function PageShell({
     { label: "Bitacora", href: "/projects/" + projectId + "/bitacora" },
     { label: "Presupuesto", href: "/projects/" + projectId + "/budget" },
     { label: "Levantamiento", href: "/projects/" + projectId + "/initial-survey" },
-    { label: "Planificación", href: "/projects/" + projectId + "/planning" },
+    { label: "Inspecciones de Dirección", href: "/projects/" + projectId + "/direction-inspections" },
+    { label: "PlanificaciÃ³n", href: "/projects/" + projectId + "/planning" },
     { label: "Avance", href: "/projects/" + projectId + "/progress" },
     { label: "Alertas", href: "/projects/" + projectId + "/alerts" },
     { label: "Documentos", href: "/projects/" + projectId + "/documents" },
@@ -152,3 +153,5 @@ function getNavClass(active: boolean) {
       : "border-dac-primary/15 bg-white text-dac-primary hover:border-dac-secondary hover:bg-dac-secondary/10")
   );
 }
+
+

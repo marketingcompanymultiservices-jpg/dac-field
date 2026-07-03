@@ -9,6 +9,8 @@ import {
   budgetItems as initialBudgetItems,
   commitmentItems,
   documentItems,
+  permissionActions,
+  permissionModules,
   projects,
   reportItems,
   timelineEvents
@@ -39,6 +41,8 @@ import type {
   DailyPhoto,
   DailyReportEntry,
   DashboardMetric,
+  DirectionInspection,
+  DirectionInspectionStatus,
   InitialSurveyMetadata,
   ManualProgressChange,
   Project,
@@ -61,6 +65,7 @@ type ProjectStoreValue = {
   progressItems: BudgetProgressItem[];
   manualProgressChanges: ManualProgressChange[];
   budgetQuantityChanges: BudgetQuantityChange[];
+  directionInspections: DirectionInspection[];
   timeline: TimelineEvent[];
   reports: ProjectReport[];
   planningItems: ActivityPlanning[];
@@ -84,6 +89,7 @@ type ProjectStoreValue = {
   addDailyActivity: (activity: Omit<DailyActivity, "id" | "projectId">) => void;
   addDailyCommitment: (commitment: Omit<Commitment, "id" | "status" | "origin" | "createdAt" | "projectId">) => void;
   addDailyPhotos: (photos: DailyPhoto[]) => void;
+  addDirectionInspectionPhotos: (photos: DailyPhoto[]) => void;
   updateDailyPhotoDescription: (id: string, description: string) => void;
   updateDailyPhotoDetails: (id: string, details: Pick<DailyPhoto, "description" | "activityId">) => void;
   deleteDailyPhoto: (id: string) => void;
@@ -106,6 +112,9 @@ type ProjectStoreValue = {
   updateAdminRole: (role: AdminRole) => void;
   toggleRolePermission: (roleId: string, module: AdminPermissionModule, action: AdminPermissionAction) => void;
   updateAlertStatus: (id: string, status: AlertStatus) => void;
+  addDirectionInspection: (inspection: Omit<DirectionInspection, "id" | "createdAt" | "updatedAt" | "history">) => void;
+  updateDirectionInspection: (id: string, update: Partial<DirectionInspection>, user: string, action: string, detail: string) => void;
+  updateDirectionInspectionStatus: (id: string, status: DirectionInspectionStatus, user: string, detail?: string) => void;
   addSystemEvent: (event: Omit<TimelineEvent, "id" | "time" | "source"> & { time?: string }) => void;
   resetDemoData: () => void;
 };
@@ -123,6 +132,7 @@ export function ProjectStoreProvider({ children }: { children: ReactNode }) {
   const [budgetVersion, setBudgetVersion] = useState<BudgetVersion | null>(null);
   const [manualProgressChanges, setManualProgressChanges] = useState<ManualProgressChange[]>([]);
   const [budgetQuantityChanges, setBudgetQuantityChanges] = useState<BudgetQuantityChange[]>([]);
+  const [directionInspections, setDirectionInspections] = useState<DirectionInspection[]>([]);
   const [planningItems, setPlanningItems] = useState<ActivityPlanning[]>([]);
   const [initialSurvey, setInitialSurvey] = useState<InitialSurveyMetadata | null>(null);
   const [systemEvents, setSystemEvents] = useState<TimelineEvent[]>([]);
@@ -277,13 +287,14 @@ export function ProjectStoreProvider({ children }: { children: ReactNode }) {
       setBudgetVersion(storedState.budgetVersion ?? null);
       setManualProgressChanges(storedState.manualProgressChanges ?? []);
       setBudgetQuantityChanges(storedState.budgetQuantityChanges ?? []);
+      setDirectionInspections(storedState.directionInspections ?? []);
       setPlanningItems((storedState.planningItems ?? []).map((item) => ({ ...item, plannedQuantity: item.plannedQuantity ?? 0, status: "Pendiente" })));
       setInitialSurvey(storedState.initialSurvey ?? null);
       setSystemEvents(storedState.systemEvents ?? []);
       setReports(storedState.reports);
       setAdminCompany(storedState.adminCompany ?? initialAdminCompany);
       setAdminUsers(storedState.adminUsers ?? initialAdminUsers);
-      setAdminRoles(storedState.adminRoles ?? initialAdminRoles);
+      setAdminRoles((storedState.adminRoles ?? initialAdminRoles).map(normalizeRolePermissions));
       setAlertOverrides(storedState.alertOverrides ?? []);
       setKnownAlertIds(storedState.knownAlertIds ?? []);
       setHasLocalData(true);
@@ -311,6 +322,7 @@ export function ProjectStoreProvider({ children }: { children: ReactNode }) {
       budgetVersion,
       manualProgressChanges,
       budgetQuantityChanges,
+      directionInspections,
       planningItems,
       initialSurvey,
       systemEvents,
@@ -325,7 +337,7 @@ export function ProjectStoreProvider({ children }: { children: ReactNode }) {
     });
     setHasLocalData(true);
     setLastSavedAt(savedAt);
-  }, [activities, adminCompany, adminRoles, adminUsers, alertOverrides, budgetItems, budgetQuantityChanges, budgetVersion, commitments, dailyReports, documents, initialSurvey, isHydrated, knownAlertIds, manualProgressChanges, photos, planningItems, progressItems, project, reports, shouldPersist, systemEvents, timeline]);
+  }, [activities, adminCompany, adminRoles, adminUsers, alertOverrides, budgetItems, budgetQuantityChanges, budgetVersion, commitments, dailyReports, directionInspections, documents, initialSurvey, isHydrated, knownAlertIds, manualProgressChanges, photos, planningItems, progressItems, project, reports, shouldPersist, systemEvents, timeline]);
 
   function resetDemoData() {
     clearAppState();
@@ -340,6 +352,7 @@ export function ProjectStoreProvider({ children }: { children: ReactNode }) {
     setBudgetVersion(null);
     setManualProgressChanges([]);
     setBudgetQuantityChanges([]);
+    setDirectionInspections([]);
     setPlanningItems([]);
     setInitialSurvey(null);
     setSystemEvents([]);
@@ -366,6 +379,7 @@ export function ProjectStoreProvider({ children }: { children: ReactNode }) {
     budgetVersion,
     manualProgressChanges,
     budgetQuantityChanges,
+    directionInspections,
     progressItems,
     planningItems,
     initialSurvey,
@@ -423,6 +437,10 @@ export function ProjectStoreProvider({ children }: { children: ReactNode }) {
           ...current
         ]);
       }
+    },
+    addDirectionInspectionPhotos(nextPhotos) {
+      setShouldPersist(true);
+      setPhotos((current) => [...nextPhotos, ...current]);
     },
     updateDailyPhotoDescription(id, description) {
       setShouldPersist(true);
@@ -657,6 +675,82 @@ export function ProjectStoreProvider({ children }: { children: ReactNode }) {
         ...current
       ]);
     },
+    addDirectionInspection(inspection) {
+      setShouldPersist(true);
+      const now = new Date().toISOString();
+      const nextInspection: DirectionInspection = {
+        ...inspection,
+        id: "inspection-" + Date.now(),
+        createdAt: now,
+        updatedAt: now,
+        history: [
+          {
+            id: "inspection-history-" + Date.now(),
+            user: inspection.createdBy,
+            date: now,
+            action: "Creacion",
+            detail: "Inspeccion creada y asignada a " + inspection.responsible + "."
+          }
+        ]
+      };
+      setDirectionInspections((current) => [nextInspection, ...current]);
+    },
+    updateDirectionInspection(id, update, user, action, detail) {
+      setShouldPersist(true);
+      const now = new Date().toISOString();
+      setDirectionInspections((current) =>
+        current.map((inspection) =>
+          inspection.id === id
+            ? {
+                ...inspection,
+                ...update,
+                updatedAt: now,
+                updatedBy: user,
+                history: [
+                  {
+                    id: "inspection-history-" + Date.now(),
+                    user,
+                    date: now,
+                    action,
+                    detail
+                  },
+                  ...inspection.history
+                ]
+              }
+            : inspection
+        )
+      );
+    },
+    updateDirectionInspectionStatus(id, status, user, detail) {
+      setShouldPersist(true);
+      const now = new Date().toISOString();
+      const nextUpdate: Partial<DirectionInspection> = { status };
+      if (status === "Atendida") nextUpdate.attendedAt = now;
+      if (status === "Cerrada") nextUpdate.closedAt = now;
+      if (status !== "Cerrada") nextUpdate.closedAt = undefined;
+      setDirectionInspections((current) =>
+        current.map((inspection) =>
+          inspection.id === id
+            ? {
+                ...inspection,
+                ...nextUpdate,
+                updatedAt: now,
+                updatedBy: user,
+                history: [
+                  {
+                    id: "inspection-history-" + Date.now(),
+                    user,
+                    date: now,
+                    action: "Cambio de estado",
+                    detail: detail ?? "Estado actualizado a " + status + "."
+                  },
+                  ...inspection.history
+                ]
+              }
+            : inspection
+        )
+      );
+    },
     addSystemEvent(event) {
       setShouldPersist(true);
       setSystemEvents((current) => [
@@ -680,4 +774,19 @@ export function useProjectStore() {
   const context = useContext(ProjectStoreContext);
   if (!context) throw new Error("useProjectStore must be used inside ProjectStoreProvider");
   return context;
+}
+
+function normalizeRolePermissions(role: AdminRole): AdminRole {
+  return {
+    ...role,
+    permissions: Object.fromEntries(
+      permissionModules.map((module) => [
+        module,
+        {
+          ...Object.fromEntries(permissionActions.map((action) => [action, false])),
+          ...(role.permissions[module] ?? {})
+        }
+      ])
+    ) as AdminRole["permissions"]
+  };
 }

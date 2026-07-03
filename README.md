@@ -526,3 +526,17 @@ Activacion de usuarios por administrador:
 - Migracion requerida: `database/sprint-5-4c-user-activation.sql`.
 - El login actual se conserva sin cambios.
 
+## Sprint 5.5
+
+Inspecciones de Direccion:
+
+- Nuevo modulo `/projects/[projectId]/direction-inspections`.
+- Acceso desde menu principal y Centro de Control de Obra.
+- Permite crear inspecciones independientes del Registro Diario.
+- Campos: obra, fecha automatica, director autenticado, responsable, estado, ubicacion, clasificacion, prioridad, descripcion, fotografias y compromiso.
+- Seguimiento con respuesta del responsable, evidencias de correccion, fecha de atencion, cierre y reapertura.
+- Dashboard interno con pendientes, en proceso, cerradas, vencidas, por responsable y por clasificacion.
+- Auditoria local con historial completo de cambios por inspeccion.
+- Fotografias almacenadas con el helper IndexedDB existente, asociadas por `inspectionId`.
+- Migracion preparada: `database/sprint-5-5-direction-inspections.sql`.
+
