@@ -54,18 +54,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     let mounted = true;
-    supabaseClient.auth.getSession().then(({ data }) => {
+    supabaseClient.auth.getSession().then(async ({ data }) => {
       if (!mounted) return;
       setSession(data.session);
       setUser(data.session?.user ?? null);
-      if (data.session?.user) syncProfile(data.session.user);
+      if (data.session?.user) await syncProfile(data.session.user);
       setLoading(false);
     });
 
-    const { data: listener } = supabaseClient.auth.onAuthStateChange((_event, nextSession) => {
+    const { data: listener } = supabaseClient.auth.onAuthStateChange(async (_event, nextSession) => {
       setSession(nextSession);
       setUser(nextSession?.user ?? null);
-      if (nextSession?.user) syncProfile(nextSession.user);
+      if (nextSession?.user) await syncProfile(nextSession.user);
       if (!nextSession?.user) setRemoteProfile(null);
       setLoading(false);
     });
