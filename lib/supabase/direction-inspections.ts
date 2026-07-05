@@ -39,6 +39,25 @@ type DirectionInspectionHistoryRow = {
 
 type DirectionInspectionInsert = Omit<DirectionInspection, "id" | "createdAt" | "updatedAt" | "history">;
 
+type SupabaseDiagnosticErrorInput = {
+  operation: string;
+  error: unknown;
+  payload?: Record<string, unknown>;
+  diagnostics?: DirectionInspectionDiagnostics;
+};
+
+type DirectionInspectionDiagnostics = {
+  authUserId: string | null;
+  authEmail: string | null;
+  profileRole: string | null;
+  profileActive: boolean | null;
+  currentProfileRole: string | null;
+  currentProfileRoleError: string | null;
+  rlsExpectedToAllowWrite: boolean;
+};
+
+const writeAllowedRoles = ["Administrador", "Director Administrativo", "Director", "Residente de Obra"];
+
 export async function loadDirectionInspectionsFromSupabase() {
   if (!supabaseClient) throw new Error("Supabase no esta configurado.");
 
@@ -74,13 +93,44 @@ export async function loadDirectionInspectionsFromSupabase() {
 export async function createDirectionInspectionInSupabase(inspection: DirectionInspectionInsert) {
   if (!supabaseClient) throw new Error("Supabase no esta configurado.");
 
+  const payload = toInspectionRow(inspection);
+  const diagnostics = await getDirectionInspectionDiagnostics();
+  const missingFields = getMissingRequiredInspectionFields(payload);
+  console.info("[DAC DirectionInspections] Insert diagnostic", {
+    requiredFieldsOk: missingFields.length === 0,
+    missingFields,
+    payload,
+    diagnostics
+  });
+
+  if (missingFields.length > 0) {
+    throw new SupabaseDiagnosticError({
+      operation: "Validacion local antes de INSERT en direction_inspections",
+      error: {
+        code: "DAC_REQUIRED_FIELDS",
+        message: "Faltan campos obligatorios para guardar la inspeccion.",
+        details: "Campos faltantes: " + missingFields.join(", ")
+      },
+      payload,
+      diagnostics
+    });
+  }
+
   const { data, error } = await supabaseClient
     .from("direction_inspections")
-    .insert(toInspectionRow(inspection))
+    .insert(payload)
     .select("*")
     .single();
 
-  if (error) throw error;
+  if (error) {
+    logSupabaseDiagnosticError("INSERT direction_inspections", error, payload, diagnostics);
+    throw new SupabaseDiagnosticError({
+      operation: "INSERT direction_inspections",
+      error,
+      payload,
+      diagnostics
+    });
+  }
 
   const created = data as DirectionInspectionRow;
   const history = await addDirectionInspectionHistory(created.id, inspection.createdBy, "Inspeccion creada", "Observacion registrada desde Inspecciones de Direccion.");
@@ -97,6 +147,12 @@ export async function updateDirectionInspectionInSupabase(
   if (!supabaseClient) throw new Error("Supabase no esta configurado.");
 
   const payload = toInspectionUpdateRow({ ...update, updatedBy: user, updatedAt: new Date().toISOString() });
+  const diagnostics = await getDirectionInspectionDiagnostics();
+  console.info("[DAC DirectionInspections] Update diagnostic", {
+    id,
+    payload,
+    diagnostics
+  });
   const { data, error } = await supabaseClient
     .from("direction_inspections")
     .update(payload)
@@ -104,7 +160,15 @@ export async function updateDirectionInspectionInSupabase(
     .select("*")
     .single();
 
-  if (error) throw error;
+  if (error) {
+    logSupabaseDiagnosticError("UPDATE direction_inspections", error, payload, diagnostics);
+    throw new SupabaseDiagnosticError({
+      operation: "UPDATE direction_inspections",
+      error,
+      payload,
+      diagnostics
+    });
+  }
 
   const history = await addDirectionInspectionHistory(id, user, action, detail);
   return { inspection: data as DirectionInspectionRow, history };
@@ -113,18 +177,33 @@ export async function updateDirectionInspectionInSupabase(
 export async function addDirectionInspectionHistory(inspectionId: string, user: string, action: string, detail: string) {
   if (!supabaseClient) throw new Error("Supabase no esta configurado.");
 
+  const payload = {
+    inspection_id: inspectionId,
+    user_name: user,
+    action,
+    detail
+  };
+  const diagnostics = await getDirectionInspectionDiagnostics();
+  console.info("[DAC DirectionInspections] History insert diagnostic", {
+    payload,
+    diagnostics
+  });
+
   const { data, error } = await supabaseClient
     .from("direction_inspection_history")
-    .insert({
-      inspection_id: inspectionId,
-      user_name: user,
-      action,
-      detail
-    })
+    .insert(payload)
     .select("*")
     .single();
 
-  if (error) throw error;
+  if (error) {
+    logSupabaseDiagnosticError("INSERT direction_inspection_history", error, payload, diagnostics);
+    throw new SupabaseDiagnosticError({
+      operation: "INSERT direction_inspection_history",
+      error,
+      payload,
+      diagnostics
+    });
+  }
   return mapHistoryRow(data as DirectionInspectionHistoryRow);
 }
 
@@ -227,4 +306,157 @@ function toInspectionUpdateRow(update: Partial<DirectionInspection>) {
   if (update.updatedAt !== undefined) payload.updated_at = update.updatedAt;
   if (update.updatedBy !== undefined) payload.updated_by = update.updatedBy;
   return payload;
+}
+
+async function getDirectionInspectionDiagnostics(): Promise<DirectionInspectionDiagnostics> {
+  if (!supabaseClient) {
+    return {
+      authUserId: null,
+      authEmail: null,
+      profileRole: null,
+      profileActive: null,
+      currentProfileRole: null,
+      currentProfileRoleError: "Supabase no esta configurado.",
+      rlsExpectedToAllowWrite: false
+    };
+  }
+
+  const { data: userData } = await supabaseClient.auth.getUser();
+  const authUser = userData.user;
+  let profileRole: string | null = null;
+  let profileActive: boolean | null = null;
+
+  if (authUser?.id) {
+    const { data: profile, error: profileError } = await supabaseClient
+      .from("profiles")
+      .select("rol,activo")
+      .eq("id", authUser.id)
+      .maybeSingle();
+
+    if (profileError) {
+      console.error("[DAC DirectionInspections] profiles role diagnostic error", {
+        code: profileError.code,
+        message: profileError.message,
+        details: profileError.details,
+        hint: profileError.hint
+      });
+    }
+
+    profileRole = (profile?.rol as string | undefined) ?? null;
+    profileActive = (profile?.activo as boolean | undefined) ?? null;
+  }
+
+  const { data: roleData, error: roleError } = await supabaseClient.rpc("current_profile_role");
+  const currentProfileRole = typeof roleData === "string" ? roleData : null;
+  const currentProfileRoleError = roleError ? formatSupabaseError(roleError) : null;
+
+  if (roleError) {
+    console.error("[DAC DirectionInspections] current_profile_role diagnostic error", {
+      code: roleError.code,
+      message: roleError.message,
+      details: roleError.details,
+      hint: roleError.hint
+    });
+  }
+
+  return {
+    authUserId: authUser?.id ?? null,
+    authEmail: authUser?.email ?? null,
+    profileRole,
+    profileActive,
+    currentProfileRole,
+    currentProfileRoleError,
+    rlsExpectedToAllowWrite: Boolean(currentProfileRole && writeAllowedRoles.includes(currentProfileRole))
+  };
+}
+
+function getMissingRequiredInspectionFields(payload: Record<string, unknown>) {
+  const requiredFields = [
+    "project_id",
+    "project_name",
+    "created_by",
+    "director",
+    "responsible",
+    "status",
+    "category",
+    "priority",
+    "description",
+    "due_date",
+    "observation_photo_ids",
+    "correction_photo_ids",
+    "updated_by"
+  ];
+
+  return requiredFields.filter((field) => {
+    const value = payload[field];
+    if (Array.isArray(value)) return false;
+    return value === undefined || value === null || value === "";
+  });
+}
+
+function logSupabaseDiagnosticError(operation: string, error: unknown, payload: Record<string, unknown>, diagnostics: DirectionInspectionDiagnostics) {
+  console.error("[DAC DirectionInspections] Supabase error", {
+    operation,
+    error: normalizeSupabaseError(error),
+    payload,
+    diagnostics
+  });
+}
+
+function formatSupabaseError(error: unknown) {
+  const normalized = normalizeSupabaseError(error);
+  return [
+    normalized.code ? "code: " + normalized.code : null,
+    normalized.message ? "message: " + normalized.message : null,
+    normalized.details ? "details: " + normalized.details : null,
+    normalized.hint ? "hint: " + normalized.hint : null
+  ]
+    .filter(Boolean)
+    .join(" | ");
+}
+
+function normalizeSupabaseError(error: unknown) {
+  if (error && typeof error === "object") {
+    const source = error as { code?: string; message?: string; details?: string; hint?: string; status?: number | string };
+    return {
+      code: source.code ?? "",
+      message: source.message ?? "Error desconocido de Supabase.",
+      details: source.details ?? "",
+      hint: source.hint ?? "",
+      status: source.status ?? ""
+    };
+  }
+
+  return {
+    code: "",
+    message: error instanceof Error ? error.message : String(error),
+    details: "",
+    hint: "",
+    status: ""
+  };
+}
+
+class SupabaseDiagnosticError extends Error {
+  constructor({ operation, error, payload, diagnostics }: SupabaseDiagnosticErrorInput) {
+    const normalized = normalizeSupabaseError(error);
+    super(
+      [
+        "Supabase " + operation,
+        "code: " + (normalized.code || "sin codigo"),
+        "message: " + normalized.message,
+        "details: " + (normalized.details || "sin detalles"),
+        "hint: " + (normalized.hint || "sin hint"),
+        "rol profiles: " + (diagnostics?.profileRole ?? "sin rol"),
+        "current_profile_role(): " + (diagnostics?.currentProfileRole ?? "sin rol"),
+        "RLS permite escritura esperada: " + (diagnostics?.rlsExpectedToAllowWrite ? "si" : "no")
+      ].join(" | ")
+    );
+    this.name = "SupabaseDiagnosticError";
+    console.error("[DAC DirectionInspections] DiagnosticError", {
+      operation,
+      error: normalized,
+      payload,
+      diagnostics
+    });
+  }
 }
