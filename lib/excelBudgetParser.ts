@@ -4,12 +4,21 @@ import type { BudgetItem } from "@/types";
 export type ParsedBudgetRow = {
   rowNumber: number;
   item: string;
+  importOrder: number;
   description: string;
   unit: string;
   quantity: number;
   unitValue: number;
   totalValue: number;
   initialProgress: number;
+  chapter: string;
+  subchapter: string;
+};
+
+export type DuplicateBudgetItem = {
+  item: string;
+  description: string;
+  rowNumber: number;
   chapter: string;
   subchapter: string;
 };
@@ -49,9 +58,11 @@ export type ParsedBudgetExcel = {
   fileName: string;
   activities: BudgetItem[];
   validRows: ParsedBudgetRow[];
+  duplicateItems: DuplicateBudgetItem[];
   discardedRows: DiscardedBudgetRow[];
   summary: BudgetValidationSummary;
   warnings: string[];
+  canImportWithAutoResolution: boolean;
   canImport: boolean;
 };
 
@@ -113,9 +124,11 @@ export async function parseBudgetExcel(file: File): Promise<ParsedBudgetExcel> {
   }
 
   const detectedRows = detectBudgetRows(rows.slice(detected.headerIndex + 1), detected.columns as ColumnMap, detected.headerIndex + 2);
+  const duplicateItems = detectDuplicateItems(detectedRows.validRows);
   const activities = detectedRows.validRows.map((row, index) => ({
-    id: "budget-" + row.item + "-" + index,
+    id: "budget-" + row.item + "-" + row.importOrder,
     item: row.item,
+    importOrder: row.importOrder,
     description: row.description,
     unit: row.unit,
     quantity: row.quantity,
@@ -143,15 +156,26 @@ export async function parseBudgetExcel(file: File): Promise<ParsedBudgetExcel> {
   const warnings = [...detectedRows.warnings];
   if (activities.length === 0) warnings.push("No hay actividades validas para importar.");
   if (totalBudgetValue === 0) warnings.push("El valor total detectado es 0.");
+  if (duplicateItems.length > 0) {
+    warnings.push("Se detectaron " + duplicateItems.length + " actividades con ITEM duplicado. Usa la resolucion automatica antes de importar.");
+    console.info("[DAC Budget] Items duplicados detectados en Excel", {
+      duplicateCount: duplicateItems.length,
+      duplicateItems
+    });
+  }
+
+  const canImportWithAutoResolution = activities.length > 0 && totalBudgetValue > 0 && missingColumns.length === 0;
 
   return {
     fileName: file.name,
     activities,
     validRows: detectedRows.validRows,
+    duplicateItems,
     discardedRows: detectedRows.discardedRows,
     summary,
     warnings,
-    canImport: activities.length > 0 && totalBudgetValue > 0 && missingColumns.length === 0
+    canImportWithAutoResolution,
+    canImport: canImportWithAutoResolution && duplicateItems.length === 0
   };
 }
 
@@ -255,6 +279,7 @@ export function detectBudgetRows(rows: RawRow[], columns: ColumnMap, firstRowNum
     validRows.push({
       rowNumber,
       item: itemText,
+      importOrder: validRows.length + 1,
       description,
       unit,
       quantity,
@@ -267,6 +292,26 @@ export function detectBudgetRows(rows: RawRow[], columns: ColumnMap, firstRowNum
   });
 
   return { validRows, discardedRows, warnings, chapters, subchapters };
+}
+
+function detectDuplicateItems(rows: ParsedBudgetRow[]) {
+  const byItem = new Map<string, ParsedBudgetRow[]>();
+  rows.forEach((row) => {
+    const key = normalizeText(row.item);
+    byItem.set(key, [...(byItem.get(key) ?? []), row]);
+  });
+
+  return Array.from(byItem.values())
+    .filter((group) => group.length > 1)
+    .flatMap((group) =>
+      group.map((row) => ({
+        item: row.item,
+        description: row.description,
+        rowNumber: row.rowNumber,
+        chapter: row.chapter,
+        subchapter: row.subchapter
+      }))
+    );
 }
 
 function detectHeaderRow(rows: RawRow[]) {

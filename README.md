@@ -580,3 +580,13 @@ Diagnostico tecnico de importacion de presupuesto:
 - Los errores de Supabase se muestran con `code`, `message`, `details` y `hint` para identificar RLS, columnas, tipos de dato, nulos o conflictos.
 - Si falla la insercion de actividades, la interfaz no muestra importacion exitosa.
 
+## Sprint 5.6.6
+
+Manejo de items duplicados al importar presupuesto:
+
+- La validacion Excel detecta actividades con el mismo ITEM antes de insertar en Supabase.
+- La pantalla muestra fila, item, descripcion, capitulo y subcapitulo de cada duplicado.
+- La confirmacion queda bloqueada hasta resolver duplicados.
+- La resolucion automatica conserva el ITEM original visible y usa `import_order` como diferenciador tecnico.
+- Migracion requerida: `database/sprint-5-6-6-budget-duplicate-items.sql`.
+

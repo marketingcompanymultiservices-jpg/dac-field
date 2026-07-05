@@ -5,6 +5,7 @@ type BudgetItemRow = {
   id: string;
   project_id: string;
   item: string;
+  import_order: number | string | null;
   description: string;
   unit: string;
   quantity: number | string;
@@ -217,6 +218,7 @@ function mapBudgetItemRow(row: BudgetItemRow): BudgetItem {
   return {
     id: row.id,
     item: row.item,
+    importOrder: Number(row.import_order ?? 0) || 0,
     description: row.description,
     unit: row.unit,
     quantity: Number(row.quantity) || 0,
@@ -244,6 +246,7 @@ function toBudgetItemRow(projectId: string, item: BudgetItem) {
   return {
     project_id: projectId,
     item: item.item,
+    import_order: item.importOrder ?? 0,
     description: item.description,
     unit: item.unit,
     quantity: item.quantity,

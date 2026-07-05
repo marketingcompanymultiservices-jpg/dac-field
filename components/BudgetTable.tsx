@@ -68,7 +68,7 @@ export function BudgetTable({
 
   function startEditing(item: BudgetItem) {
     const progressItem = progressByItem.get(item.item);
-    setEditingItem(item.item);
+    setEditingItem(getBudgetRowKey(item));
     setBaseQuantityDraft(String(item.quantity));
     setExecutedDraft(String(progressItem?.executedQuantity ?? 0));
     setObservationDraft("");
@@ -202,10 +202,11 @@ export function BudgetTable({
               const progressItem = progressByItem.get(item.item);
               const progress = progressItem?.progress ?? 0;
               const status = getProgressStatus(progress);
+              const rowKey = getBudgetRowKey(item);
 
               return (
-                <Fragment key={item.item}>
-                <tr key={item.item} className="align-top">
+                <Fragment key={rowKey}>
+                <tr className="align-top">
                   <td className="border-b border-dac-primary/10 px-2.5 py-3 text-sm font-black text-dac-primary">{item.item}</td>
                   <td className="border-b border-dac-primary/10 px-2.5 py-3">
                     <p className="truncate text-sm font-bold text-dac-text" title={item.description}>{item.description}</p>
@@ -232,7 +233,7 @@ export function BudgetTable({
                     </div>
                   </td>
                 </tr>
-                {editingItem === item.item && (
+                {editingItem === rowKey && (
                   <tr className="border-b border-dac-primary/10 bg-dac-primary/[0.03]">
                     <td colSpan={8} className="px-3 py-4">
                       <div className="grid gap-4 lg:grid-cols-[1fr_1fr_1fr_1fr_auto]">
@@ -350,4 +351,8 @@ function getStatusClass(status: string) {
   if (status === "Finalizado") return "inline-flex rounded-full bg-dac-secondary/15 px-3 py-1 text-xs font-black text-dac-primary";
   if (status === "En ejecucion") return "inline-flex rounded-full bg-dac-alert/15 px-3 py-1 text-xs font-black text-dac-text";
   return "inline-flex rounded-full bg-dac-primary/10 px-3 py-1 text-xs font-black text-dac-text/70";
+}
+
+function getBudgetRowKey(item: BudgetItem) {
+  return item.id ?? item.item + "-" + (item.importOrder ?? 0);
 }

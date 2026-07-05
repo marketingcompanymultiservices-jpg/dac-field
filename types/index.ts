@@ -115,6 +115,7 @@ export type BudgetQuantityChange = {
 export type BudgetItem = {
   id?: string;
   item: string;
+  importOrder?: number;
   description: string;
   unit: string;
   quantity: number;

@@ -24,6 +24,7 @@ export function BudgetImportCard({ budgetVersion, onImportBudget }: BudgetImport
   const [lastImportedVersion, setLastImportedVersion] = useState<BudgetVersion | null>(null);
   const [isReading, setIsReading] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
+  const [duplicatesResolved, setDuplicatesResolved] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
 
@@ -32,6 +33,7 @@ export function BudgetImportCard({ budgetVersion, onImportBudget }: BudgetImport
     setError("");
     setParsedBudget(null);
     setLastImportedVersion(null);
+    setDuplicatesResolved(false);
 
     if (!file) return;
 
@@ -49,7 +51,8 @@ export function BudgetImportCard({ budgetVersion, onImportBudget }: BudgetImport
 
   async function confirmImport() {
     if (!parsedBudget) return;
-    if (!parsedBudget.canImport) {
+    const canConfirm = parsedBudget.canImport || (parsedBudget.canImportWithAutoResolution && parsedBudget.duplicateItems.length > 0 && duplicatesResolved);
+    if (!canConfirm) {
       setError("No se puede importar: revisa actividades validas, valor total y columnas obligatorias.");
       return;
     }
@@ -146,7 +149,7 @@ export function BudgetImportCard({ budgetVersion, onImportBudget }: BudgetImport
                   <button
                     type="button"
                     onClick={confirmImport}
-                    disabled={!parsedBudget.canImport || isImporting}
+                    disabled={!(parsedBudget.canImport || (parsedBudget.canImportWithAutoResolution && parsedBudget.duplicateItems.length > 0 && duplicatesResolved)) || isImporting}
                     className="focus-ring rounded-md bg-dac-primary px-5 py-3 font-black text-white hover:bg-dac-secondary disabled:cursor-not-allowed disabled:bg-dac-primary/35"
                   >
                     {isImporting ? "Importando..." : "Confirmar importacion"}
@@ -163,6 +166,18 @@ export function BudgetImportCard({ budgetVersion, onImportBudget }: BudgetImport
               </div>
 
               <ValidationSummary parsedBudget={parsedBudget} />
+
+              {parsedBudget.duplicateItems.length > 0 && (
+                <DuplicateItemsPanel
+                  parsedBudget={parsedBudget}
+                  resolved={duplicatesResolved}
+                  onResolve={() => {
+                    setDuplicatesResolved(true);
+                    setError("");
+                    setMessage("Duplicados resueltos automaticamente con orden interno de importacion. El ITEM visible del Excel se conserva.");
+                  }}
+                />
+              )}
 
               {parsedBudget.warnings.length > 0 && (
                 <div className="rounded-md bg-dac-alert/10 p-3">
@@ -192,6 +207,7 @@ function ValidationSummary({ parsedBudget }: { parsedBudget: ParsedBudgetExcel }
     ["Actividades validas", numberFormatter.format(summary.validActivities)],
     ["Capitulos detectados", numberFormatter.format(summary.chaptersDetected)],
     ["Subcapitulos detectados", numberFormatter.format(summary.subchaptersDetected)],
+    ["Items duplicados", numberFormatter.format(parsedBudget.duplicateItems.length)],
     ["Filas descartadas", numberFormatter.format(summary.discardedRows)],
     ["Valor total detectado", currencyFormatter.format(summary.totalBudgetValue)],
     ["Columnas detectadas", summary.detectedColumns.map(formatColumnLabel).join(", ")]
@@ -202,6 +218,61 @@ function ValidationSummary({ parsedBudget }: { parsedBudget: ParsedBudgetExcel }
       {cards.map(([label, value]) => (
         <Info key={label} label={label} value={value} />
       ))}
+    </div>
+  );
+}
+
+function DuplicateItemsPanel({
+  parsedBudget,
+  resolved,
+  onResolve
+}: {
+  parsedBudget: ParsedBudgetExcel;
+  resolved: boolean;
+  onResolve: () => void;
+}) {
+  return (
+    <div className="rounded-lg border border-dac-alert/30 bg-dac-alert/10 p-4">
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+        <div>
+          <p className="text-sm font-black uppercase text-dac-alert">Items duplicados detectados</p>
+          <h3 className="mt-1 text-lg font-black text-dac-primary">{parsedBudget.duplicateItems.length} filas requieren resolucion tecnica</h3>
+          <p className="mt-1 max-w-3xl text-sm font-semibold text-dac-text/70">
+            DAC conservara el ITEM original visible y usara un orden interno de importacion para diferenciar actividades repetidas en Supabase.
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={onResolve}
+          disabled={resolved}
+          className="focus-ring rounded-md bg-dac-primary px-4 py-3 text-sm font-black text-white hover:bg-dac-secondary disabled:cursor-not-allowed disabled:bg-dac-primary/40"
+        >
+          {resolved ? "Duplicados resueltos" : "Resolver automaticamente"}
+        </button>
+      </div>
+
+      <div className="mt-4 max-h-72 overflow-auto rounded-md bg-white">
+        <table className="w-full min-w-[780px] border-collapse text-left">
+          <thead className="sticky top-0 bg-dac-primary text-white">
+            <tr>
+              {["FILA", "ITEM", "DESCRIPCION", "CAPITULO", "SUBCAPITULO"].map((header) => (
+                <th key={header} className="px-3 py-3 text-xs font-black uppercase">{header}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {parsedBudget.duplicateItems.map((item) => (
+              <tr key={item.item + item.rowNumber} className="border-b border-dac-primary/10 last:border-b-0">
+                <td className="px-3 py-3 text-sm font-black text-dac-primary">{item.rowNumber}</td>
+                <td className="px-3 py-3 text-sm font-black text-dac-primary">{item.item}</td>
+                <td className="px-3 py-3 text-sm font-semibold">{item.description}</td>
+                <td className="px-3 py-3 text-sm font-semibold">{item.chapter}</td>
+                <td className="px-3 py-3 text-sm font-semibold">{item.subchapter}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }
