@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { FormEvent, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 import { AppLogo } from "@/components/AppLogo";
 import { useAuth } from "@/components/AuthProvider";
 import { permissionActions, permissionModules } from "@/lib/mock-data";
@@ -17,6 +17,18 @@ const labelClass = "block text-sm font-bold text-dac-text";
 
 export function AdminPanel() {
   const [activeTab, setActiveTab] = useState<AdminTab>("Empresa");
+
+  useEffect(() => {
+    function syncTabFromHash() {
+      const hash = window.location.hash.replace("#", "").toLowerCase();
+      const nextTab = tabs.find((tab) => normalizeTab(tab) === hash);
+      if (nextTab) setActiveTab(nextTab);
+    }
+
+    syncTabFromHash();
+    window.addEventListener("hashchange", syncTabFromHash);
+    return () => window.removeEventListener("hashchange", syncTabFromHash);
+  }, []);
 
   return (
     <div className="mt-6 grid gap-6">
@@ -397,4 +409,8 @@ function getTabClass(active: boolean) {
       ? "border-dac-primary bg-dac-primary text-white"
       : "border-dac-primary/15 bg-white text-dac-primary hover:border-dac-secondary hover:bg-dac-secondary/10")
   );
+}
+
+function normalizeTab(tab: AdminTab) {
+  return tab.toLowerCase();
 }

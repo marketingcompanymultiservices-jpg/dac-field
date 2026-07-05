@@ -9,16 +9,24 @@ import { buildProgrammedRows, calculateProgrammedSummary } from "@/lib/programme
 import { getTodayISO, getWeekStartISO } from "@/lib/planning";
 import { buildActivityProductivity, calculateProductivitySummary } from "@/lib/productivity";
 import { useProjectStore } from "@/lib/project-store";
-import type { SmartAlert } from "@/types";
+import type { AdminPermissionModule, SmartAlert } from "@/types";
 
 const currencyFormatter = new Intl.NumberFormat("es-CO", { style: "currency", currency: "COP", maximumFractionDigits: 0 });
 const numberFormatter = new Intl.NumberFormat("es-CO", { maximumFractionDigits: 1 });
+
+type QuickAction = {
+  href: string;
+  label: string;
+  permission: AdminPermissionModule;
+  alert?: boolean;
+};
 
 export function DirectorControlCenter() {
   const { profile } = useAuth();
   const {
     activities,
     alerts,
+    adminRoles,
     budgetItems,
     commitments,
     currentUser,
@@ -36,6 +44,8 @@ export function DirectorControlCenter() {
   } = useProjectStore();
   const today = getTodayISO();
   const dashboardUser = profile ?? currentUser;
+  const roleName = profile?.role ?? currentUser.role;
+  const roleConfig = adminRoles.find((role) => role.name === roleName);
   const weekStart = getWeekStartISO(today);
   const todayActivities = activities.filter((activity) => activity.date === today);
   const todayPhotos = photos.filter((photo) => photo.date === today);
@@ -57,6 +67,15 @@ export function DirectorControlCenter() {
   const overdueCommitments = commitments.filter((commitment) => commitment.status === "Vencido" || (commitment.status !== "Cumplido" && commitment.dueDate < today)).length;
   const completedCommitments = commitments.filter((commitment) => commitment.status === "Cumplido").length;
   const lastResponsible = todayActivities[0]?.owner || project.resident;
+  const quickActionItems: QuickAction[] = [
+    { href: "/projects/" + project.id + "/daily-report", label: "Registro Diario", permission: "Registro Diario" },
+    { href: "/projects/" + project.id + "/direction-inspections", label: "Nueva Inspección", permission: "Inspecciones de Direccion", alert: true },
+    { href: "/projects/" + project.id + "/progress", label: "Registrar Avance", permission: "Avance" },
+    { href: "/projects/" + project.id + "/budget", label: "Presupuesto", permission: "Presupuesto" },
+    { href: "/projects/" + project.id + "/reports", label: "Reportes", permission: "Reportes" },
+    { href: "/projects/" + project.id + "/documents", label: "Documentos", permission: "Documentos" }
+  ];
+  const quickActions = quickActionItems.filter((action) => canView(action.permission, roleConfig, roleName));
 
   function handleReset() {
     const confirmed = window.confirm("Esto borrara los datos guardados localmente y restaurara los datos de prueba. Deseas continuar?");
@@ -72,6 +91,26 @@ export function DirectorControlCenter() {
         meta={"Estado del proyecto: " + project.status}
         description="Tablero ejecutivo para control administrativo, tecnico y operativo de la obra."
       />
+
+      <section className="mt-4">
+        <Panel>
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+            <div>
+              <p className="text-sm font-black uppercase text-dac-secondary">¿Qué desea hacer?</p>
+              <h2 className="mt-1 text-xl font-black text-dac-primary">Acciones principales</h2>
+            </div>
+            <button type="button" onClick={handleReset} className="focus-ring rounded-md border border-dac-alert px-3 py-2 text-sm font-bold text-dac-alert hover:bg-dac-alert hover:text-white">
+              Reiniciar datos de prueba
+            </button>
+          </div>
+          <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+            {quickActions.map((action) => (
+              <QuickLink key={action.href + action.label} href={action.href} label={action.label} alert={action.alert} />
+            ))}
+            {quickActions.length === 0 && <Empty text="No hay acciones disponibles para el rol actual." />}
+          </div>
+        </Panel>
+      </section>
 
       <section className="mt-4 grid gap-3 xl:grid-cols-[1.45fr_0.55fr]">
         <Panel>
@@ -165,30 +204,6 @@ export function DirectorControlCenter() {
             <MiniMetric label="Finalizadas" value={completedActivities} />
             <MiniMetric label="En ejecucion" value={activeActivities} />
             <MiniMetric label="Sin iniciar" value={pendingActivities} alert={pendingActivities > 0} />
-          </div>
-        </Panel>
-      </section>
-
-      <section className="mt-4 grid gap-3">
-        <Panel>
-          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-            <div>
-              <p className="text-sm font-black uppercase text-dac-secondary">Accesos rapidos</p>
-              <h2 className="mt-1 text-xl font-black text-dac-primary">Operacion y seguimiento</h2>
-            </div>
-            <button type="button" onClick={handleReset} className="focus-ring rounded-md border border-dac-alert px-3 py-2 text-sm font-bold text-dac-alert hover:bg-dac-alert hover:text-white">
-              Reiniciar datos de prueba
-            </button>
-          </div>
-          <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-8">
-            <QuickLink href={"/projects/" + project.id + "/daily-report"} label="Registro Diario" />
-            <QuickLink href={"/projects/" + project.id + "/progress"} label="Avance" />
-            <QuickLink href={"/projects/" + project.id + "/budget"} label="Presupuesto" />
-            <QuickLink href={"/projects/" + project.id + "/reports"} label="Reportes" />
-            <QuickLink href={"/projects/" + project.id + "/alerts"} label="Alertas" />
-            <QuickLink href={"/projects/" + project.id + "/planning"} label="Planificacion" />
-            <QuickLink href="/field" label="Modo Obra" alert />
-            <QuickLink href={"/projects/" + project.id} label="Centro de Control" />
           </div>
         </Panel>
       </section>
@@ -322,4 +337,10 @@ function formatSavedAt(lastSavedAt: string | null, isHydrated: boolean, hasLocal
   if (!hasLocalData) return "Datos de prueba";
   if (!lastSavedAt) return "Local";
   return new Date(lastSavedAt).toLocaleString("es-CO", { month: "short", day: "2-digit", hour: "2-digit", minute: "2-digit" });
+}
+
+function canView(permission: AdminPermissionModule, roleConfig: { permissions: Partial<Record<AdminPermissionModule, { Ver?: boolean }>> } | undefined, roleName: string) {
+  if (roleName === "Administrador") return true;
+  if (!roleConfig) return true;
+  return roleConfig.permissions[permission]?.Ver ?? false;
 }

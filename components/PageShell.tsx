@@ -7,10 +7,17 @@ import { useAuth } from "@/components/AuthProvider";
 import { getVersionLabel } from "@/lib/appConfig";
 import { getEnvironment } from "@/lib/environment";
 import { useProjectStore } from "@/lib/project-store";
+import type { AdminPermissionModule } from "@/types";
 
 type NavItem = {
   label: string;
   href: string;
+  permission?: AdminPermissionModule;
+};
+
+type NavGroup = {
+  title: string;
+  items: NavItem[];
 };
 
 export function PageShell({
@@ -26,46 +33,80 @@ export function PageShell({
   backHref?: string;
   backLabel?: string;
 }) {
-  const { adminCompany, currentUser, hasLocalData, isHydrated, lastSavedAt } = useProjectStore();
+  const { adminCompany, adminRoles, currentUser, hasLocalData, isHydrated, lastSavedAt, project } = useProjectStore();
   const { logout, profile, user } = useAuth();
   const displayName = profile ? profile.firstName + " " + profile.lastName : user?.email ?? currentUser.firstName + " " + currentUser.lastName;
   const displayRole = profile?.role ?? currentUser.role;
   const environment = getEnvironment();
-  const navigation: NavItem[] = [
-    { label: "Dashboard", href: "/dashboard" },
-    { label: "Modo Obra", href: "/field" },
-    { label: "Obra", href: "/projects/" + projectId },
-    { label: "Registro Diario", href: "/projects/" + projectId + "/daily-report" },
-    { label: "Bitacora", href: "/projects/" + projectId + "/bitacora" },
-    { label: "Presupuesto", href: "/projects/" + projectId + "/budget" },
-    { label: "Levantamiento", href: "/projects/" + projectId + "/initial-survey" },
-    { label: "Inspecciones de Dirección", href: "/projects/" + projectId + "/direction-inspections" },
-    { label: "PlanificaciÃ³n", href: "/projects/" + projectId + "/planning" },
-    { label: "Avance", href: "/projects/" + projectId + "/progress" },
-    { label: "Alertas", href: "/projects/" + projectId + "/alerts" },
-    { label: "Documentos", href: "/projects/" + projectId + "/documents" },
-    { label: "Reportes", href: "/projects/" + projectId + "/reports" },
-    { label: "Compromisos", href: "/projects/" + projectId + "/commitments" },
-    { label: "Administracion", href: "/admin" },
-    { label: "Acerca de", href: "/about" }
+  const roleConfig = adminRoles.find((role) => role.name === displayRole);
+  const navigation: NavGroup[] = [
+    {
+      title: "Dashboard",
+      items: [{ label: "Dashboard", href: "/dashboard", permission: "Dashboard" }]
+    },
+    {
+      title: "Obra",
+      items: [
+        { label: "Modo Obra", href: "/field", permission: "Registro Diario" },
+        { label: "Obra", href: "/projects/" + projectId },
+        { label: "Levantamiento", href: "/projects/" + projectId + "/initial-survey", permission: "Levantamiento Inicial" },
+        { label: "Avance", href: "/projects/" + projectId + "/progress", permission: "Avance" },
+        { label: "Planificación", href: "/projects/" + projectId + "/planning" }
+      ]
+    },
+    {
+      title: "Control",
+      items: [
+        { label: "Registro Diario", href: "/projects/" + projectId + "/daily-report", permission: "Registro Diario" },
+        { label: "Bitácora", href: "/projects/" + projectId + "/bitacora", permission: "Bitacora" },
+        { label: "Inspecciones de Dirección", href: "/projects/" + projectId + "/direction-inspections", permission: "Inspecciones de Direccion" },
+        { label: "Compromisos", href: "/projects/" + projectId + "/commitments", permission: "Compromisos" },
+        { label: "Alertas", href: "/projects/" + projectId + "/alerts" }
+      ]
+    },
+    {
+      title: "Gestión",
+      items: [
+        { label: "Presupuesto", href: "/projects/" + projectId + "/budget", permission: "Presupuesto" },
+        { label: "Reportes", href: "/projects/" + projectId + "/reports", permission: "Reportes" },
+        { label: "Documentos", href: "/projects/" + projectId + "/documents", permission: "Documentos" }
+      ]
+    },
+    {
+      title: "Administración",
+      items: [
+        { label: "Empresa", href: "/admin#empresa", permission: "Administracion" },
+        { label: "Usuarios", href: "/admin#usuarios", permission: "Administracion" },
+        { label: "Roles", href: "/admin#roles", permission: "Administracion" },
+        { label: "Permisos", href: "/admin#permisos", permission: "Administracion" }
+      ]
+    }
   ];
+  const visibleNavigation = navigation
+    .map((group) => ({
+      ...group,
+      items: group.items.filter((item) => canView(item.permission, roleConfig, displayRole))
+    }))
+    .filter((group) => group.items.length > 0);
 
   return (
     <main className="min-h-screen bg-white">
       <header className="sticky top-0 z-20 border-b border-dac-primary/10 bg-white/95 backdrop-blur">
         <div className="mx-auto w-full max-w-[1800px] px-3 py-2 sm:px-4 lg:px-5">
           <div className="flex flex-col gap-2 xl:flex-row xl:items-center xl:justify-between">
-            <div className="flex items-center justify-between gap-4">
+            <div className="flex min-w-0 items-center justify-between gap-4">
               <Link href="/dashboard" className="focus-ring rounded-md">
                 <AppBrand />
               </Link>
-              <button type="button" onClick={logout} className="focus-ring rounded-md border border-dac-primary/20 px-3 py-1.5 text-sm font-bold text-dac-primary hover:bg-dac-primary hover:text-white xl:hidden">
-                Salir
-              </button>
+              <div className="hidden min-w-0 rounded-md bg-dac-primary/[0.04] px-3 py-2 lg:block">
+                <p className="text-xs font-black uppercase text-dac-text/50">Proyecto activo</p>
+                <p className="truncate text-sm font-black text-dac-primary">{project.name}</p>
+              </div>
             </div>
 
             <div className="flex min-w-0 flex-1 flex-col gap-2 xl:items-end">
-              <div className="hidden items-center gap-2 xl:flex">
+              <div className="flex flex-wrap items-center justify-between gap-2 xl:justify-end">
+                <ModuleMenu groups={visibleNavigation} activeItem={activeItem} />
                 <StorageIndicator hasLocalData={hasLocalData} isHydrated={isHydrated} lastSavedAt={lastSavedAt} />
                 <div className="text-right">
                   <p className="text-sm font-black text-dac-primary">{displayName}</p>
@@ -76,21 +117,12 @@ export function PageShell({
                 </button>
               </div>
 
-              <nav aria-label="Navegacion principal" className="w-full overflow-x-auto pb-0.5 xl:w-auto xl:max-w-full">
-                <div className="flex min-w-max gap-1.5">
-                  {navigation.map((item) => (
-                    <Link key={item.href} href={item.href} className={getNavClass(activeItem === item.label)}>
-                      {item.label}
-                    </Link>
-                  ))}
-                </div>
-              </nav>
-
               <div className="rounded-md bg-dac-primary/[0.04] px-3 py-2 lg:hidden">
+                <p className="text-xs font-black uppercase text-dac-text/50">Proyecto activo</p>
+                <p className="mb-2 text-sm font-black text-dac-primary">{project.name}</p>
                 <p className="text-sm font-black text-dac-primary">{displayName}</p>
                 <p className="text-xs font-semibold text-dac-text/60">{displayRole}</p>
                 <p className="text-xs font-semibold text-dac-text/60">{adminCompany.name}</p>
-                <StorageIndicator hasLocalData={hasLocalData} isHydrated={isHydrated} lastSavedAt={lastSavedAt} compact />
               </div>
             </div>
           </div>
@@ -116,6 +148,33 @@ export function PageShell({
         </div>
       </footer>
     </main>
+  );
+}
+
+function ModuleMenu({ groups, activeItem }: { groups: NavGroup[]; activeItem?: string }) {
+  return (
+    <details className="group relative">
+      <summary className="focus-ring flex cursor-pointer list-none items-center gap-2 rounded-md bg-dac-primary px-4 py-2 text-sm font-black text-white shadow-sm hover:bg-dac-secondary [&::-webkit-details-marker]:hidden">
+        Módulos
+        <span className="text-xs transition group-open:rotate-180">⌄</span>
+      </summary>
+      <div className="absolute right-0 z-40 mt-2 max-h-[75vh] w-[min(92vw,760px)] overflow-y-auto rounded-lg border border-dac-primary/15 bg-white p-3 shadow-panel">
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {groups.map((group) => (
+            <section key={group.title} className="rounded-md border border-dac-primary/10 p-3">
+              <p className="text-xs font-black uppercase text-dac-secondary">{group.title}</p>
+              <div className="mt-2 grid gap-1">
+                {group.items.map((item) => (
+                  <Link key={item.href + item.label} href={item.href} className={getMenuItemClass(activeItem === item.label)}>
+                    {item.label}
+                  </Link>
+                ))}
+              </div>
+            </section>
+          ))}
+        </div>
+      </div>
+    </details>
   );
 }
 
@@ -145,13 +204,20 @@ function StorageIndicator({
   );
 }
 
-function getNavClass(active: boolean) {
+function getMenuItemClass(active: boolean) {
   return (
-    "focus-ring whitespace-nowrap rounded-md border px-2.5 py-1.5 text-[13px] font-bold transition " +
+    "focus-ring rounded-md px-3 py-2 text-sm font-bold transition " +
     (active
-      ? "border-dac-primary bg-dac-primary text-white"
-      : "border-dac-primary/15 bg-white text-dac-primary hover:border-dac-secondary hover:bg-dac-secondary/10")
+      ? "bg-dac-primary text-white"
+      : "text-dac-primary hover:bg-dac-secondary/10")
   );
+}
+
+function canView(permission: AdminPermissionModule | undefined, roleConfig: { permissions: Partial<Record<AdminPermissionModule, { Ver?: boolean }>> } | undefined, displayRole: string) {
+  if (!permission) return true;
+  if (displayRole === "Administrador") return true;
+  if (!roleConfig) return true;
+  return roleConfig.permissions[permission]?.Ver ?? false;
 }
 
 

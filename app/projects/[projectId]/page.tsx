@@ -13,7 +13,7 @@ const actions = [
   ["Presupuesto", "budget"],
   ["Levantamiento Inicial", "initial-survey"],
   ["Inspecciones de Dirección", "direction-inspections"],
-  ["PlanificaciÃ³n", "planning"],
+  ["Planificación", "planning"],
   ["Avance", "progress"],
   ["Alertas", "alerts"],
   ["Documentos", "documents"],
