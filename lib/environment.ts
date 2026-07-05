@@ -21,5 +21,6 @@ export function getEnvironment(): PublicEnvironment {
 }
 
 export function isProductionEnvironment() {
-  return getEnvironment().environment.toLowerCase() === "produccion" || getEnvironment().environment.toLowerCase() === "producción";
+  const environment = getEnvironment().environment.toLowerCase();
+  return environment === "produccion" || environment === "producción" || environment === "production";
 }

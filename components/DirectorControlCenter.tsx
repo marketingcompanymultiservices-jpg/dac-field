@@ -5,6 +5,7 @@ import type { ReactNode } from "react";
 import { ModuleHeader } from "@/components/ModuleHeader";
 import { PageShell } from "@/components/PageShell";
 import { useAuth } from "@/components/AuthProvider";
+import { isProductionEnvironment } from "@/lib/environment";
 import { buildProgrammedRows, calculateProgrammedSummary } from "@/lib/programmed-progress";
 import { getTodayISO, getWeekStartISO } from "@/lib/planning";
 import { buildActivityProductivity, calculateProductivitySummary } from "@/lib/productivity";
@@ -43,6 +44,7 @@ export function DirectorControlCenter() {
     resetDemoData
   } = useProjectStore();
   const today = getTodayISO();
+  const isProduction = isProductionEnvironment();
   const dashboardUser = profile ?? currentUser;
   const roleName = profile?.role ?? currentUser.role;
   const roleConfig = adminRoles.find((role) => role.name === roleName);
@@ -99,9 +101,11 @@ export function DirectorControlCenter() {
               <p className="text-sm font-black uppercase text-dac-secondary">¿Qué desea hacer?</p>
               <h2 className="mt-1 text-xl font-black text-dac-primary">Acciones principales</h2>
             </div>
-            <button type="button" onClick={handleReset} className="focus-ring rounded-md border border-dac-alert px-3 py-2 text-sm font-bold text-dac-alert hover:bg-dac-alert hover:text-white">
-              Reiniciar datos de prueba
-            </button>
+            {!isProduction && (
+              <button type="button" onClick={handleReset} className="focus-ring rounded-md border border-dac-alert px-3 py-2 text-sm font-bold text-dac-alert hover:bg-dac-alert hover:text-white">
+                Reiniciar datos de prueba
+              </button>
+            )}
           </div>
           <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
             {quickActions.map((action) => (

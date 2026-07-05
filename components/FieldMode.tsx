@@ -386,7 +386,7 @@ export function FieldMode() {
         <section id="sync" className="rounded-lg border border-dac-primary/10 bg-white p-4 shadow-sm">
           <SectionTitle eyebrow="Sincronizacion local" title="Estado de datos" />
           <div className="mt-4 grid gap-3">
-            <Info label="Datos" value={!isHydrated ? "Cargando" : hasLocalData ? "Datos guardados localmente" : "Datos de prueba"} />
+            <Info label="Datos" value={!isHydrated ? "Sincronizando" : hasLocalData ? "Sincronizado" : "Datos base"} />
             <Info label="Fotos pendientes" value={String(Math.max(0, 5 - currentPhotos.length))} />
             <Info label="Reporte de hoy" value={todayReport?.status ?? "No enviado"} />
           </div>

@@ -124,7 +124,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   async function changePassword(password: string) {
-    if (!isSupabaseConfigured || !supabaseClient || !user) return { error: "Supabase no estÃ¡ configurado." };
+    if (!isSupabaseConfigured || !supabaseClient || !user) return { error: "Supabase no está configurado." };
     const normalizedPassword = password.trim();
     if (normalizedPassword.length < 8) return { error: "La nueva contrasena debe tener minimo 8 caracteres." };
 

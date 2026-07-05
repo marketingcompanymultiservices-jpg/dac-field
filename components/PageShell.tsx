@@ -1,6 +1,7 @@
 ﻿"use client";
 
 import Link from "next/link";
+import { useState } from "react";
 import type { ReactNode } from "react";
 import { AppBrand } from "@/components/AppBrand";
 import { useAuth } from "@/components/AuthProvider";
@@ -152,29 +153,72 @@ export function PageShell({
 }
 
 function ModuleMenu({ groups, activeItem }: { groups: NavGroup[]; activeItem?: string }) {
+  const [mobileOpen, setMobileOpen] = useState(false);
+
   return (
-    <details className="group relative">
-      <summary className="focus-ring flex cursor-pointer list-none items-center gap-2 rounded-md bg-dac-primary px-4 py-2 text-sm font-black text-white shadow-sm hover:bg-dac-secondary [&::-webkit-details-marker]:hidden">
+    <>
+      <button
+        type="button"
+        onClick={() => setMobileOpen(true)}
+        className="focus-ring rounded-md bg-dac-primary px-4 py-2 text-sm font-black text-white shadow-sm hover:bg-dac-secondary md:hidden"
+      >
         Módulos
-        <span className="text-xs transition group-open:rotate-180">⌄</span>
-      </summary>
-      <div className="absolute right-0 z-40 mt-2 max-h-[75vh] w-[min(92vw,760px)] overflow-y-auto rounded-lg border border-dac-primary/15 bg-white p-3 shadow-panel">
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {groups.map((group) => (
-            <section key={group.title} className="rounded-md border border-dac-primary/10 p-3">
-              <p className="text-xs font-black uppercase text-dac-secondary">{group.title}</p>
-              <div className="mt-2 grid gap-1">
-                {group.items.map((item) => (
-                  <Link key={item.href + item.label} href={item.href} className={getMenuItemClass(activeItem === item.label)}>
-                    {item.label}
-                  </Link>
-                ))}
-              </div>
-            </section>
-          ))}
+      </button>
+
+      <details className="group relative hidden md:block">
+        <summary className="focus-ring flex cursor-pointer list-none items-center gap-2 rounded-md bg-dac-primary px-4 py-2 text-sm font-black text-white shadow-sm hover:bg-dac-secondary [&::-webkit-details-marker]:hidden">
+          Módulos
+          <span className="text-xs transition group-open:rotate-180">⌄</span>
+        </summary>
+        <div className="absolute right-0 z-40 mt-2 max-h-[75vh] w-[min(92vw,760px)] overflow-y-auto rounded-lg border border-dac-primary/15 bg-white p-3 shadow-panel">
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {groups.map((group) => (
+              <section key={group.title} className="rounded-md border border-dac-primary/10 p-3">
+                <p className="text-xs font-black uppercase text-dac-secondary">{group.title}</p>
+                <div className="mt-2 grid gap-1">
+                  {group.items.map((item) => (
+                    <Link key={item.href + item.label} href={item.href} className={getMenuItemClass(activeItem === item.label)}>
+                      {item.label}
+                    </Link>
+                  ))}
+                </div>
+              </section>
+            ))}
+          </div>
         </div>
-      </div>
-    </details>
+      </details>
+
+      {mobileOpen && (
+        <div className="fixed inset-0 z-50 md:hidden">
+          <button type="button" aria-label="Cerrar menu" onClick={() => setMobileOpen(false)} className="absolute inset-0 bg-dac-text/45" />
+          <aside className="absolute inset-y-0 left-0 flex w-[min(88vw,360px)] flex-col overflow-y-auto bg-white p-4 shadow-panel">
+            <div className="flex items-start justify-between gap-3 border-b border-dac-primary/10 pb-3">
+              <div>
+                <p className="text-xs font-black uppercase text-dac-secondary">Navegación</p>
+                <h2 className="text-xl font-black text-dac-primary">Módulos</h2>
+              </div>
+              <button type="button" onClick={() => setMobileOpen(false)} className="focus-ring rounded-md border border-dac-primary/20 px-3 py-2 text-sm font-black text-dac-primary">
+                Cerrar
+              </button>
+            </div>
+            <div className="mt-4 grid gap-3">
+              {groups.map((group) => (
+                <section key={group.title} className="rounded-md border border-dac-primary/10 p-3">
+                  <p className="text-xs font-black uppercase text-dac-secondary">{group.title}</p>
+                  <div className="mt-2 grid gap-1">
+                    {group.items.map((item) => (
+                      <Link key={item.href + item.label} href={item.href} onClick={() => setMobileOpen(false)} className={getMenuItemClass(activeItem === item.label)}>
+                        {item.label}
+                      </Link>
+                    ))}
+                  </div>
+                </section>
+              ))}
+            </div>
+          </aside>
+        </div>
+      )}
+    </>
   );
 }
 
@@ -190,16 +234,16 @@ function StorageIndicator({
   compact?: boolean;
 }) {
   const label = !isHydrated
-    ? "Cargando datos locales"
+    ? "Sincronizando"
     : hasLocalData
-      ? "Datos guardados localmente"
-      : "Datos de prueba";
+      ? "Sincronizado"
+      : "Datos base";
   const detail = lastSavedAt ? new Date(lastSavedAt).toLocaleTimeString("es-CO", { hour: "2-digit", minute: "2-digit" }) : "";
 
   return (
     <div className={(compact ? "mt-2 " : "") + "rounded-md border border-dac-secondary/25 bg-dac-secondary/10 px-2.5 py-1.5 text-left"}>
       <p className="text-xs font-black text-dac-primary">{label}</p>
-      {!compact && detail && <p className="text-[11px] font-semibold text-dac-text/60">Ultimo guardado: {detail}</p>}
+      {!compact && detail && <p className="text-[11px] font-semibold text-dac-text/60">Última sincronización: {detail}</p>}
     </div>
   );
 }
