@@ -4,6 +4,13 @@ import { ChangeEvent, FormEvent, useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/components/AuthProvider";
 import { getImage, saveImage } from "@/lib/imageStorage";
 import { useProjectStore } from "@/lib/project-store";
+import { isSupabaseConfigured } from "@/lib/supabaseClient";
+import {
+  createDirectionInspectionInSupabase,
+  loadDirectionInspectionsFromSupabase,
+  mergeDirectionInspectionUpdate,
+  updateDirectionInspectionInSupabase
+} from "@/lib/supabase/direction-inspections";
 import type { DirectionInspection, DirectionInspectionCategory, DirectionInspectionPriority, DirectionInspectionStatus } from "@/types";
 
 type InspectionDraft = {
@@ -64,20 +71,18 @@ export function DirectionInspectionsBoard() {
   const { profile, user } = useAuth();
   const {
     adminUsers,
-    addDirectionInspection,
     addDirectionInspectionPhotos,
-    directionInspections,
     photos,
     project,
-    projects,
-    updateDirectionInspection,
-    updateDirectionInspectionStatus
+    projects
   } = useProjectStore();
   const currentUser = profile ? (profile.firstName + " " + profile.lastName).trim() : user?.email ?? "Usuario DAC";
   const [draft, setDraft] = useState<InspectionDraft>({ ...emptyDraft, responsible: project.resident });
   const [observationFiles, setObservationFiles] = useState<File[]>([]);
+  const [directionInspections, setDirectionInspections] = useState<DirectionInspection[]>([]);
   const [filters, setFilters] = useState<Filters>({ project: "Todos", responsible: "Todos", status: "Todos", priority: "Todas", category: "Todas", date: "" });
   const [message, setMessage] = useState("");
+  const [isLoading, setIsLoading] = useState(true);
 
   const responsibles = useMemo(() => {
     return adminUsers.filter((item) => item.active).map((item) => (item.firstName + " " + item.lastName).trim() || item.email);
@@ -105,6 +110,32 @@ export function DirectionInspectionsBoard() {
     };
   }, [directionInspections]);
 
+  useEffect(() => {
+    let active = true;
+    async function loadInspections() {
+      if (!isSupabaseConfigured) {
+        setMessage("Supabase no esta configurado. No es posible cargar inspecciones remotas.");
+        setIsLoading(false);
+        return;
+      }
+
+      try {
+        setIsLoading(true);
+        const inspections = await loadDirectionInspectionsFromSupabase();
+        if (active) setDirectionInspections(inspections);
+      } catch (error) {
+        if (active) setMessage(error instanceof Error ? error.message : "No fue posible cargar inspecciones desde Supabase.");
+      } finally {
+        if (active) setIsLoading(false);
+      }
+    }
+
+    loadInspections();
+    return () => {
+      active = false;
+    };
+  }, []);
+
   async function submitInspection(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setMessage("");
@@ -113,32 +144,48 @@ export function DirectionInspectionsBoard() {
       return;
     }
 
-    const now = new Date();
-    const savedPhotos = await saveFiles(observationFiles, "observacion", "");
-    addDirectionInspectionPhotos(savedPhotos);
-    addDirectionInspection({
-      projectId: project.id,
-      projectName: project.name,
-      createdBy: currentUser,
-      director: currentUser,
-      responsible: draft.responsible,
-      status: draft.status,
-      tower: draft.tower,
-      floor: draft.floor,
-      apartment: draft.apartment,
-      workFront: draft.workFront,
-      category: draft.category,
-      priority: draft.priority,
-      description: draft.description.trim(),
-      dueDate: draft.dueDate,
-      commitmentNotes: draft.commitmentNotes,
-      observationPhotoIds: savedPhotos.map((photo) => photo.id),
-      correctionPhotoIds: [],
-      updatedBy: currentUser
-    });
-    setDraft({ ...emptyDraft, responsible: project.resident });
-    setObservationFiles([]);
-    setMessage("Inspeccion registrada el " + now.toLocaleString("es-CO") + ".");
+    try {
+      const now = new Date();
+      const createdInspection = await createDirectionInspectionInSupabase({
+        projectId: project.id,
+        projectName: project.name,
+        createdBy: currentUser,
+        director: currentUser,
+        responsible: draft.responsible,
+        status: draft.status,
+        tower: draft.tower,
+        floor: draft.floor,
+        apartment: draft.apartment,
+        workFront: draft.workFront,
+        category: draft.category,
+        priority: draft.priority,
+        description: draft.description.trim(),
+        dueDate: draft.dueDate,
+        commitmentNotes: draft.commitmentNotes,
+        observationPhotoIds: [],
+        correctionPhotoIds: [],
+        updatedBy: currentUser
+      });
+      const savedPhotos = await saveFiles(observationFiles, "observacion", createdInspection.id);
+      addDirectionInspectionPhotos(savedPhotos);
+      let nextInspection = createdInspection;
+      if (savedPhotos.length > 0) {
+        const updateResult = await updateDirectionInspectionInSupabase(
+          createdInspection.id,
+          { observationPhotoIds: savedPhotos.map((photo) => photo.id) },
+          currentUser,
+          "Fotografias de observacion",
+          "Se asociaron " + savedPhotos.length + " fotografias a la inspeccion."
+        );
+        nextInspection = mergeDirectionInspectionUpdate(createdInspection, updateResult.inspection, updateResult.history);
+      }
+      setDirectionInspections((current) => [nextInspection, ...current]);
+      setDraft({ ...emptyDraft, responsible: project.resident });
+      setObservationFiles([]);
+      setMessage("Inspeccion registrada en Supabase el " + now.toLocaleString("es-CO") + ".");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "No fue posible guardar la inspeccion en Supabase.");
+    }
   }
 
   async function saveFiles(files: File[], photoType: "observacion" | "correccion", inspectionId: string) {
@@ -216,11 +263,13 @@ export function DirectionInspectionsBoard() {
               photos={photos}
               saveFiles={saveFiles}
               addPhotos={addDirectionInspectionPhotos}
-              updateInspection={updateDirectionInspection}
-              updateStatus={updateDirectionInspectionStatus}
+              onRemoteUpdate={(nextInspection) =>
+                setDirectionInspections((current) => current.map((item) => (item.id === nextInspection.id ? nextInspection : item)))
+              }
             />
           ))}
-          {filteredInspections.length === 0 && <p className="rounded-lg border border-dac-primary/10 bg-white p-5 text-sm font-semibold text-dac-text/60">No hay inspecciones para los filtros seleccionados.</p>}
+          {isLoading && <p className="rounded-lg border border-dac-primary/10 bg-white p-5 text-sm font-semibold text-dac-text/60">Cargando inspecciones desde Supabase...</p>}
+          {!isLoading && filteredInspections.length === 0 && <p className="rounded-lg border border-dac-primary/10 bg-white p-5 text-sm font-semibold text-dac-text/60">No hay inspecciones para los filtros seleccionados.</p>}
         </section>
       </section>
 
@@ -235,38 +284,66 @@ function InspectionCard({
   photos,
   saveFiles,
   addPhotos,
-  updateInspection,
-  updateStatus
+  onRemoteUpdate
 }: {
   currentUser: string;
   inspection: DirectionInspection;
   photos: Array<{ id: string; name: string }>;
   saveFiles: (files: File[], photoType: "observacion" | "correccion", inspectionId: string) => Promise<Array<{ id: string }>>;
   addPhotos: (photos: any[]) => void;
-  updateInspection: (id: string, update: Partial<DirectionInspection>, user: string, action: string, detail: string) => void;
-  updateStatus: (id: string, status: DirectionInspectionStatus, user: string, detail?: string) => void;
+  onRemoteUpdate: (inspection: DirectionInspection) => void;
 }) {
   const [response, setResponse] = useState(inspection.response ?? "");
   const [correctionFiles, setCorrectionFiles] = useState<File[]>([]);
+  const [message, setMessage] = useState("");
   const observationPhotos = photos.filter((photo) => inspection.observationPhotoIds.includes(photo.id));
   const correctionPhotos = photos.filter((photo) => inspection.correctionPhotoIds.includes(photo.id));
 
   async function submitResponse() {
-    const savedPhotos = await saveFiles(correctionFiles, "correccion", inspection.id);
-    addPhotos(savedPhotos as any[]);
-    updateInspection(
-      inspection.id,
-      {
-        response,
-        correctionPhotoIds: [...savedPhotos.map((photo) => photo.id), ...inspection.correctionPhotoIds],
-        status: "Atendida",
-        attendedAt: new Date().toISOString()
-      },
-      currentUser,
-      "Respuesta del responsable",
-      "Respuesta registrada con " + savedPhotos.length + " fotografias de correccion."
-    );
-    setCorrectionFiles([]);
+    setMessage("");
+    try {
+      const savedPhotos = await saveFiles(correctionFiles, "correccion", inspection.id);
+      addPhotos(savedPhotos as any[]);
+      const updateResult = await updateDirectionInspectionInSupabase(
+        inspection.id,
+        {
+          response,
+          correctionPhotoIds: [...savedPhotos.map((photo) => photo.id), ...inspection.correctionPhotoIds],
+          status: "Atendida",
+          attendedAt: new Date().toISOString()
+        },
+        currentUser,
+        "Respuesta del responsable",
+        "Respuesta registrada con " + savedPhotos.length + " fotografias de correccion."
+      );
+      onRemoteUpdate(mergeDirectionInspectionUpdate(inspection, updateResult.inspection, updateResult.history));
+      setCorrectionFiles([]);
+      setMessage("Seguimiento guardado en Supabase.");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "No fue posible guardar el seguimiento.");
+    }
+  }
+
+  async function updateStatus(status: DirectionInspectionStatus, detail?: string) {
+    setMessage("");
+    try {
+      const now = new Date().toISOString();
+      const nextUpdate: Partial<DirectionInspection> = { status };
+      if (status === "Atendida") nextUpdate.attendedAt = now;
+      if (status === "Cerrada") nextUpdate.closedAt = now;
+      if (status !== "Cerrada") nextUpdate.closedAt = null as unknown as string;
+      const updateResult = await updateDirectionInspectionInSupabase(
+        inspection.id,
+        nextUpdate,
+        currentUser,
+        "Cambio de estado",
+        detail ?? "Estado actualizado a " + status + "."
+      );
+      onRemoteUpdate(mergeDirectionInspectionUpdate(inspection, updateResult.inspection, updateResult.history));
+      setMessage("Estado actualizado en Supabase.");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "No fue posible actualizar el estado.");
+    }
   }
 
   return (
@@ -288,11 +365,11 @@ function InspectionCard({
         </div>
         <div className="grid min-w-48 gap-2">
           {statuses.map((status) => (
-            <button key={status} type="button" onClick={() => updateStatus(inspection.id, status, currentUser)} className="focus-ring rounded-md border border-dac-primary/15 px-3 py-2 text-sm font-bold text-dac-primary hover:bg-dac-secondary/10">
+            <button key={status} type="button" onClick={() => updateStatus(status)} className="focus-ring rounded-md border border-dac-primary/15 px-3 py-2 text-sm font-bold text-dac-primary hover:bg-dac-secondary/10">
               {status}
             </button>
           ))}
-          <button type="button" onClick={() => updateStatus(inspection.id, "Pendiente", currentUser, "Inspeccion reabierta por Direccion.")} className="focus-ring rounded-md border border-dac-alert px-3 py-2 text-sm font-bold text-dac-alert hover:bg-dac-alert hover:text-white">
+          <button type="button" onClick={() => updateStatus("Pendiente", "Inspeccion reabierta por Direccion.")} className="focus-ring rounded-md border border-dac-alert px-3 py-2 text-sm font-bold text-dac-alert hover:bg-dac-alert hover:text-white">
             Reabrir
           </button>
         </div>
@@ -306,8 +383,9 @@ function InspectionCard({
         <input type="file" multiple accept="image/*" onChange={(event) => setCorrectionFiles(Array.from(event.target.files ?? []))} className={inputClass} />
         <div className="mt-3 flex flex-wrap gap-2">
           <button type="button" onClick={submitResponse} className="focus-ring rounded-md bg-dac-primary px-4 py-2 text-sm font-black text-white hover:bg-dac-secondary">Guardar seguimiento</button>
-          <button type="button" onClick={() => updateStatus(inspection.id, "Cerrada", currentUser, "Cierre aprobado por Direccion.")} className="focus-ring rounded-md border border-dac-primary px-4 py-2 text-sm font-black text-dac-primary hover:bg-dac-primary hover:text-white">Aprobar cierre</button>
+          <button type="button" onClick={() => updateStatus("Cerrada", "Cierre aprobado por Direccion.")} className="focus-ring rounded-md border border-dac-primary px-4 py-2 text-sm font-black text-dac-primary hover:bg-dac-primary hover:text-white">Aprobar cierre</button>
         </div>
+        {message && <p className="mt-3 rounded-md bg-dac-secondary/10 px-3 py-2 text-sm font-bold text-dac-primary">{message}</p>}
       </div>
 
       <PhotoStrip title="Fotografias de correccion" photos={correctionPhotos} />

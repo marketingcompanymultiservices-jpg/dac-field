@@ -540,3 +540,13 @@ Inspecciones de Direccion:
 - Fotografias almacenadas con el helper IndexedDB existente, asociadas por `inspectionId`.
 - Migracion preparada: `database/sprint-5-5-direction-inspections.sql`.
 
+## Sprint 5.5.1
+
+Conexion Supabase para Inspecciones de Direccion:
+
+- El modulo carga inspecciones desde `public.direction_inspections`.
+- Al crear una inspeccion se guarda la fila principal en Supabase y se crea el primer registro en `public.direction_inspection_history`.
+- Al responder, cambiar estado, cerrar o reabrir una inspeccion se actualiza Supabase y se registra el evento en el historial remoto.
+- La lista del modulo ya no depende de `localStorage` para inspecciones.
+- Se mantiene el almacenamiento local/IndexedDB para evidencias fotograficas hasta integrar Supabase Storage.
+

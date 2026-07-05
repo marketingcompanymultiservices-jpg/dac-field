@@ -51,3 +51,19 @@ Incluye:
 - Usar Supabase Storage para fotografias de inspecciones.
 - Aplicar permisos de UI estrictos por rol.
 - Notificaciones automaticas al responsable asignado.
+
+## Correccion 5.5.1 - Conexion con Supabase
+
+La migracion fue ejecutada en Supabase y el modulo quedo conectado a las tablas remotas:
+
+- `direction_inspections`
+- `direction_inspection_history`
+
+Cambios aplicados:
+
+- Al ingresar al modulo, las inspecciones se cargan desde Supabase.
+- Al crear una inspeccion, se guarda en `direction_inspections` y se registra el evento inicial en `direction_inspection_history`.
+- Al responder una inspeccion, se guarda la respuesta, fecha de atencion, evidencias asociadas y evento historico.
+- Al cambiar estado, cerrar o reabrir, se actualiza la tabla principal y se registra el cambio en el historial.
+- La lista de inspecciones deja de depender de `localStorage`.
+- Las fotografias siguen usando IndexedDB local y se referencian en Supabase mediante IDs, hasta integrar Supabase Storage.
