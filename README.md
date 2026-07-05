@@ -571,3 +571,12 @@ Correccion de sincronizacion posterior a importacion Excel:
 - Se agregan diagnosticos en consola con actividades insertadas, actividades leidas y valor total calculado desde `project_budget_items`.
 - Si Supabase devuelve un error, se muestra el detalle real y no se marca la importacion como exitosa.
 
+## Sprint 5.6.5
+
+Diagnostico tecnico de importacion de presupuesto:
+
+- Antes de insertar, DAC registra en consola el `project_id`, usuario autenticado, rol de `current_profile_role()` y primer registro enviado a `project_budget_items`.
+- La operacion registra por separado el resultado de `project_budget_versions` y `project_budget_items`.
+- Los errores de Supabase se muestran con `code`, `message`, `details` y `hint` para identificar RLS, columnas, tipos de dato, nulos o conflictos.
+- Si falla la insercion de actividades, la interfaz no muestra importacion exitosa.
+
