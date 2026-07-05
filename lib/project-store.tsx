@@ -100,7 +100,7 @@ type ProjectStoreValue = {
   addDocument: (document: ProjectDocument) => void;
   addReport: (report: ProjectReport) => void;
   deleteDraftReport: (id: string) => void;
-  importBudget: (items: BudgetItem[], version: BudgetVersion) => void;
+  importBudget: (items: BudgetItem[], version: BudgetVersion) => Promise<void>;
   updateManualProgress: (change: Omit<ManualProgressChange, "id" | "date" | "origin">) => void;
   updateBudgetQuantity: (change: Omit<BudgetQuantityChange, "id" | "date" | "origin">) => void;
   saveInitialSurvey: (items: BudgetItem[], metadata: InitialSurveyMetadata) => void;
@@ -575,30 +575,40 @@ export function ProjectStoreProvider({ children }: { children: ReactNode }) {
       setShouldPersist(true);
       setReports((current) => current.filter((report) => report.id !== id || report.status !== "Borrador"));
     },
-    importBudget(items, version) {
+    async importBudget(items, version) {
       setShouldPersist(true);
-      replaceProjectBudgetInSupabase(project.id, items.map((item) => ({ ...item, executedQuantity: 0 })), version)
-        .then((remoteBudget) => {
-          setBudgetItems(remoteBudget.items);
-          setBudgetVersion(remoteBudget.version);
-          setInitialSurvey(null);
-          setActivities([]);
-          setPlanningItems([]);
-          setManualProgressChanges([]);
-          setBudgetQuantityChanges([]);
-        })
-        .catch((error) => {
-          setSystemEvents((current) => [
-            {
-              id: "event-budget-import-error-" + Date.now(),
-              time: new Date().toTimeString().slice(0, 5),
-              title: "No fue posible importar presupuesto en Supabase.",
-              description: error instanceof Error ? error.message : "Error desconocido al guardar presupuesto.",
-              source: "Sistema"
-            },
-            ...current
-          ]);
+      try {
+        const resetItems = items.map((item) => ({ ...item, executedQuantity: 0 }));
+        const remoteBudget = await replaceProjectBudgetInSupabase(project.id, resetItems, version);
+        const remoteTotalBudgetValue = remoteBudget.items.reduce((sum, item) => sum + item.totalValue, 0);
+
+        console.info("[DAC Budget] Store actualizado desde Supabase despues de importar", {
+          projectId: project.id,
+          activitiesRead: remoteBudget.items.length,
+          totalBudgetValueFromItems: remoteTotalBudgetValue
         });
+
+        setBudgetItems(remoteBudget.items);
+        setBudgetVersion(remoteBudget.version);
+        setInitialSurvey(null);
+        setActivities([]);
+        setPlanningItems([]);
+        setManualProgressChanges([]);
+        setBudgetQuantityChanges([]);
+      } catch (error) {
+        console.error("[DAC Budget] No fue posible importar presupuesto en Supabase", error);
+        setSystemEvents((current) => [
+          {
+            id: "event-budget-import-error-" + Date.now(),
+            time: new Date().toTimeString().slice(0, 5),
+            title: "No fue posible importar presupuesto en Supabase.",
+            description: error instanceof Error ? error.message : "Error desconocido al guardar presupuesto.",
+            source: "Sistema"
+          },
+          ...current
+        ]);
+        throw error;
+      }
     },
     updateManualProgress(change) {
       setShouldPersist(true);

@@ -7,7 +7,7 @@ import type { BudgetItem, BudgetVersion } from "@/types";
 
 type BudgetImportCardProps = {
   budgetVersion: BudgetVersion | null;
-  onImportBudget: (items: BudgetItem[], version: BudgetVersion) => void;
+  onImportBudget: (items: BudgetItem[], version: BudgetVersion) => Promise<void>;
 };
 
 const currencyFormatter = new Intl.NumberFormat("es-CO", {
@@ -23,6 +23,7 @@ export function BudgetImportCard({ budgetVersion, onImportBudget }: BudgetImport
   const [parsedBudget, setParsedBudget] = useState<ParsedBudgetExcel | null>(null);
   const [lastImportedVersion, setLastImportedVersion] = useState<BudgetVersion | null>(null);
   const [isReading, setIsReading] = useState(false);
+  const [isImporting, setIsImporting] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
 
@@ -46,7 +47,7 @@ export function BudgetImportCard({ budgetVersion, onImportBudget }: BudgetImport
     }
   }
 
-  function confirmImport() {
+  async function confirmImport() {
     if (!parsedBudget) return;
     if (!parsedBudget.canImport) {
       setError("No se puede importar: revisa actividades validas, valor total y columnas obligatorias.");
@@ -65,10 +66,20 @@ export function BudgetImportCard({ budgetVersion, onImportBudget }: BudgetImport
       totalBudgetValue: parsedBudget.summary.totalBudgetValue
     };
 
-    onImportBudget(parsedBudget.activities, nextVersion);
-    setLastImportedVersion(nextVersion);
-    setParsedBudget(null);
-    setMessage("Presupuesto importado correctamente.");
+    try {
+      setIsImporting(true);
+      setError("");
+      setMessage("Importando presupuesto en Supabase...");
+      await onImportBudget(parsedBudget.activities, nextVersion);
+      setLastImportedVersion(nextVersion);
+      setParsedBudget(null);
+      setMessage("Presupuesto importado correctamente.");
+    } catch (currentError) {
+      setError(currentError instanceof Error ? currentError.message : "No fue posible importar el presupuesto en Supabase.");
+      setMessage("");
+    } finally {
+      setIsImporting(false);
+    }
   }
 
   function cancelImport() {
@@ -113,6 +124,7 @@ export function BudgetImportCard({ budgetVersion, onImportBudget }: BudgetImport
         {lastImportedVersion && <BudgetVersionPanel title="Presupuesto importado correctamente" version={lastImportedVersion} highlight />}
 
         {isReading && <p className="rounded-md bg-white px-4 py-3 text-sm font-bold text-dac-primary">Leyendo archivo Excel...</p>}
+        {isImporting && <p className="rounded-md bg-white px-4 py-3 text-sm font-bold text-dac-primary">Guardando y recargando presupuesto maestro desde Supabase...</p>}
         {message && <p className="rounded-md bg-white px-4 py-3 text-sm font-bold text-dac-primary">{message}</p>}
         {error && <p className="rounded-md bg-dac-alert/15 px-4 py-3 text-sm font-black text-dac-alert">{error}</p>}
 
@@ -134,14 +146,15 @@ export function BudgetImportCard({ budgetVersion, onImportBudget }: BudgetImport
                   <button
                     type="button"
                     onClick={confirmImport}
-                    disabled={!parsedBudget.canImport}
+                    disabled={!parsedBudget.canImport || isImporting}
                     className="focus-ring rounded-md bg-dac-primary px-5 py-3 font-black text-white hover:bg-dac-secondary disabled:cursor-not-allowed disabled:bg-dac-primary/35"
                   >
-                    Confirmar importacion
+                    {isImporting ? "Importando..." : "Confirmar importacion"}
                   </button>
                   <button
                     type="button"
                     onClick={cancelImport}
+                    disabled={isImporting}
                     className="focus-ring rounded-md border border-dac-primary/20 bg-white px-5 py-3 font-black text-dac-primary hover:bg-dac-secondary/10"
                   >
                     Cancelar

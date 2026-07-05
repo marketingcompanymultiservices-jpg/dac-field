@@ -35,7 +35,10 @@ export async function loadProjectBudgetFromSupabase(projectId: string) {
     .eq("project_id", projectId)
     .order("item", { ascending: true });
 
-  if (itemsError) throw itemsError;
+  if (itemsError) {
+    logSupabaseBudgetError("Error leyendo project_budget_items", itemsError);
+    throw itemsError;
+  }
 
   const { data: versionRow, error: versionError } = await supabaseClient
     .from("project_budget_versions")
@@ -43,10 +46,22 @@ export async function loadProjectBudgetFromSupabase(projectId: string) {
     .eq("project_id", projectId)
     .maybeSingle();
 
-  if (versionError) throw versionError;
+  if (versionError) {
+    logSupabaseBudgetError("Error leyendo project_budget_versions", versionError);
+    throw versionError;
+  }
+
+  const items = ((itemRows ?? []) as BudgetItemRow[]).map(mapBudgetItemRow);
+  const totalBudgetValue = items.reduce((sum, item) => sum + item.totalValue, 0);
+
+  console.info("[DAC Budget] Presupuesto leido desde Supabase", {
+    projectId,
+    activitiesRead: items.length,
+    totalBudgetValueFromItems: totalBudgetValue
+  });
 
   return {
-    items: ((itemRows ?? []) as BudgetItemRow[]).map(mapBudgetItemRow),
+    items,
     version: versionRow ? mapBudgetVersionRow(versionRow as BudgetVersionRow) : null
   };
 }
@@ -54,28 +69,71 @@ export async function loadProjectBudgetFromSupabase(projectId: string) {
 export async function replaceProjectBudgetInSupabase(projectId: string, items: BudgetItem[], version: BudgetVersion) {
   if (!supabaseClient) throw new Error("Supabase no esta configurado.");
 
+  console.info("[DAC Budget] Reemplazando presupuesto maestro en Supabase", {
+    projectId,
+    activitiesToInsert: items.length,
+    versionTotalBudgetValue: version.totalBudgetValue,
+    fileName: version.fileName
+  });
+
   const { error: deleteError } = await supabaseClient
     .from("project_budget_items")
     .delete()
     .eq("project_id", projectId);
 
-  if (deleteError) throw deleteError;
-
-  if (items.length > 0) {
-    const { error: insertError } = await supabaseClient
-      .from("project_budget_items")
-      .insert(items.map((item) => toBudgetItemRow(projectId, item)));
-
-    if (insertError) throw insertError;
+  if (deleteError) {
+    logSupabaseBudgetError("Error eliminando presupuesto anterior", deleteError);
+    throw deleteError;
   }
+
+  let insertedCount = 0;
+  if (items.length > 0) {
+    const rows = items.map((item) => toBudgetItemRow(projectId, item));
+    for (const chunk of chunkRows(rows, 500)) {
+      const { data, error: insertError } = await supabaseClient
+        .from("project_budget_items")
+        .insert(chunk)
+        .select("id");
+
+      if (insertError) {
+        logSupabaseBudgetError("Error insertando actividades en project_budget_items", insertError, {
+          projectId,
+          chunkSize: chunk.length,
+          insertedBeforeError: insertedCount
+        });
+        throw insertError;
+      }
+
+      insertedCount += data?.length ?? chunk.length;
+    }
+  }
+
+  console.info("[DAC Budget] Actividades insertadas en Supabase", {
+    projectId,
+    insertedCount
+  });
 
   const { error: versionError } = await supabaseClient
     .from("project_budget_versions")
     .upsert(toBudgetVersionRow(projectId, version), { onConflict: "project_id" });
 
-  if (versionError) throw versionError;
+  if (versionError) {
+    logSupabaseBudgetError("Error guardando project_budget_versions", versionError);
+    throw versionError;
+  }
 
-  return loadProjectBudgetFromSupabase(projectId);
+  const remoteBudget = await loadProjectBudgetFromSupabase(projectId);
+  const totalBudgetValue = remoteBudget.items.reduce((sum, item) => sum + item.totalValue, 0);
+
+  console.info("[DAC Budget] Presupuesto importado y recargado desde Supabase", {
+    projectId,
+    activitiesInserted: insertedCount,
+    activitiesRead: remoteBudget.items.length,
+    totalBudgetValueFromItems: totalBudgetValue,
+    versionTotalBudgetValue: remoteBudget.version?.totalBudgetValue ?? 0
+  });
+
+  return remoteBudget;
 }
 
 export async function updateProjectBudgetItemInSupabase(projectId: string, itemCode: string, update: Partial<BudgetItem>) {
@@ -100,7 +158,10 @@ export async function updateProjectBudgetItemInSupabase(projectId: string, itemC
     .select("*")
     .single();
 
-  if (error) throw error;
+  if (error) {
+    logSupabaseBudgetError("Error actualizando project_budget_items", error, { projectId, itemCode, update });
+    throw error;
+  }
   return mapBudgetItemRow(data as BudgetItemRow);
 }
 
@@ -157,4 +218,23 @@ function toBudgetVersionRow(projectId: string, version: BudgetVersion) {
     total_activities: version.totalActivities,
     total_budget_value: version.totalBudgetValue
   };
+}
+
+function chunkRows<T>(rows: T[], size: number) {
+  const chunks: T[][] = [];
+  for (let index = 0; index < rows.length; index += size) {
+    chunks.push(rows.slice(index, index + size));
+  }
+  return chunks;
+}
+
+function logSupabaseBudgetError(message: string, error: unknown, context?: Record<string, unknown>) {
+  const supabaseError = error as { code?: string; message?: string; details?: string; hint?: string };
+  console.error("[DAC Budget] " + message, {
+    code: supabaseError?.code,
+    message: supabaseError?.message,
+    details: supabaseError?.details,
+    hint: supabaseError?.hint,
+    context
+  });
 }

@@ -561,3 +561,13 @@ Presupuesto como fuente unica en Supabase:
 - Registro Diario, edicion manual de avance, correcciones de cantidad y levantamiento inicial actualizan las cantidades ejecutadas del presupuesto remoto.
 - Migracion requerida: `database/sprint-5-6-2-budget-supabase.sql`.
 
+## Sprint 5.6.4
+
+Correccion de sincronizacion posterior a importacion Excel:
+
+- La importacion de presupuesto ahora espera a que Supabase inserte las actividades y recargue `project_budget_items`.
+- El mensaje de exito solo aparece despues de actualizar el Store con el presupuesto leido desde Supabase.
+- El encabezado, las tarjetas y la tabla del Presupuesto Maestro se alimentan del presupuesto remoto recargado.
+- Se agregan diagnosticos en consola con actividades insertadas, actividades leidas y valor total calculado desde `project_budget_items`.
+- Si Supabase devuelve un error, se muestra el detalle real y no se marca la importacion como exitosa.
+
