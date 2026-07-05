@@ -550,3 +550,14 @@ Conexion Supabase para Inspecciones de Direccion:
 - La lista del modulo ya no depende de `localStorage` para inspecciones.
 - Se mantiene el almacenamiento local/IndexedDB para evidencias fotograficas hasta integrar Supabase Storage.
 
+## Sprint 5.6.2
+
+Presupuesto como fuente unica en Supabase:
+
+- El presupuesto maestro se carga desde `project_budget_items`.
+- La version del presupuesto se carga desde `project_budget_versions`.
+- `localStorage` ya no es fuente para presupuesto, cantidades, valores ni avance financiero.
+- Si existe un presupuesto local previo y Supabase esta vacio, DAC intenta migrarlo una unica vez a Supabase.
+- Registro Diario, edicion manual de avance, correcciones de cantidad y levantamiento inicial actualizan las cantidades ejecutadas del presupuesto remoto.
+- Migracion requerida: `database/sprint-5-6-2-budget-supabase.sql`.
+

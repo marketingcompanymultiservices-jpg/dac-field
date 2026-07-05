@@ -22,6 +22,7 @@ import { buildProgrammedRows, calculateProgrammedSummary } from "@/lib/programme
 import { buildSmartAlerts } from "@/lib/alerts";
 import { buildActivityProductivity, calculateProductivitySummary } from "@/lib/productivity";
 import { clearAppState, loadAppState, saveAppState } from "@/lib/storage";
+import { loadProjectBudgetFromSupabase, replaceProjectBudgetInSupabase, updateProjectBudgetItemInSupabase } from "@/lib/supabase/budget";
 import type {
   ActivityPlanning,
   AdminCompany,
@@ -128,7 +129,7 @@ export function ProjectStoreProvider({ children }: { children: ReactNode }) {
   const [photos, setPhotos] = useState<DailyPhoto[]>([]);
   const [commitments, setCommitments] = useState<Commitment[]>(commitmentItems);
   const [documents, setDocuments] = useState<ProjectDocument[]>(documentItems);
-  const [budgetItems, setBudgetItems] = useState<BudgetItem[]>(initialBudgetItems);
+  const [budgetItems, setBudgetItems] = useState<BudgetItem[]>([]);
   const [budgetVersion, setBudgetVersion] = useState<BudgetVersion | null>(null);
   const [manualProgressChanges, setManualProgressChanges] = useState<ManualProgressChange[]>([]);
   const [budgetQuantityChanges, setBudgetQuantityChanges] = useState<BudgetQuantityChange[]>([]);
@@ -147,6 +148,7 @@ export function ProjectStoreProvider({ children }: { children: ReactNode }) {
   const [lastSavedAt, setLastSavedAt] = useState<string | null>(null);
   const [shouldPersist, setShouldPersist] = useState(false);
   const didHydrateRef = useRef(false);
+  const pendingLocalBudgetRef = useRef<{ items: BudgetItem[]; version: BudgetVersion | null } | null>(null);
 
   const progressItems = useMemo(() => buildProgressFromActivities(budgetItems, activities, manualProgressChanges), [activities, budgetItems, manualProgressChanges]);
   const progressSummary = useMemo(() => calculateProgressSummary(progressItems), [progressItems]);
@@ -283,8 +285,10 @@ export function ProjectStoreProvider({ children }: { children: ReactNode }) {
       setPhotos(storedState.photos);
       setCommitments(storedState.commitments);
       setDocuments(storedState.documents);
-      setBudgetItems(storedState.budgetItems ?? initialBudgetItems);
-      setBudgetVersion(storedState.budgetVersion ?? null);
+      pendingLocalBudgetRef.current = {
+        items: storedState.budgetItems ?? [],
+        version: storedState.budgetVersion ?? null
+      };
       setManualProgressChanges(storedState.manualProgressChanges ?? []);
       setBudgetQuantityChanges(storedState.budgetQuantityChanges ?? []);
       setDirectionInspections(storedState.directionInspections ?? []);
@@ -307,6 +311,79 @@ export function ProjectStoreProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
+    if (!isHydrated) return;
+
+    let active = true;
+    async function loadRemoteBudget() {
+      try {
+        const remoteBudget = await loadProjectBudgetFromSupabase(projectBase.id);
+        if (!active) return;
+
+        if (remoteBudget.items.length > 0) {
+          setBudgetItems(remoteBudget.items);
+          setBudgetVersion(remoteBudget.version);
+          pendingLocalBudgetRef.current = null;
+          return;
+        }
+
+        const pendingLocalBudget = pendingLocalBudgetRef.current;
+        if (pendingLocalBudget?.items.length) {
+          const migrationVersion =
+            pendingLocalBudget.version ??
+            {
+              versionNumber: 1,
+              importedAt: new Date().toISOString(),
+              importedBy: "Migracion local DAC",
+              fileName: "Presupuesto local migrado",
+              totalActivities: pendingLocalBudget.items.length,
+              totalBudgetValue: pendingLocalBudget.items.reduce((sum, item) => sum + item.totalValue, 0)
+            };
+          const migratedBudget = await replaceProjectBudgetInSupabase(projectBase.id, pendingLocalBudget.items, migrationVersion);
+          if (!active) return;
+          setBudgetItems(migratedBudget.items);
+          setBudgetVersion(migratedBudget.version);
+          pendingLocalBudgetRef.current = null;
+          setSystemEvents((current) => [
+            {
+              id: "event-budget-migrated-" + Date.now(),
+              time: new Date().toTimeString().slice(0, 5),
+              title: "Presupuesto local sincronizado con Supabase.",
+              description: "Se migro una unica vez el presupuesto local para usar Supabase como fuente maestra.",
+              source: "Sistema"
+            },
+            ...current
+          ]);
+          setShouldPersist(true);
+          return;
+        }
+
+        setBudgetItems([]);
+        setBudgetVersion(remoteBudget.version);
+      } catch (error) {
+        if (!active) return;
+        setBudgetItems([]);
+        setBudgetVersion(null);
+        setSystemEvents((current) => [
+          {
+            id: "event-budget-supabase-error-" + Date.now(),
+            time: new Date().toTimeString().slice(0, 5),
+            title: "No fue posible cargar presupuesto desde Supabase.",
+            description: error instanceof Error ? error.message : "Error desconocido al consultar presupuesto maestro.",
+            source: "Sistema"
+          },
+          ...current
+        ]);
+        setShouldPersist(true);
+      }
+    }
+
+    loadRemoteBudget();
+    return () => {
+      active = false;
+    };
+  }, [isHydrated, projectBase.id]);
+
+  useEffect(() => {
     if (!didHydrateRef.current || !isHydrated || !shouldPersist) return;
     const savedAt = new Date().toISOString();
     saveAppState({
@@ -318,8 +395,8 @@ export function ProjectStoreProvider({ children }: { children: ReactNode }) {
       photos,
       commitments,
       documents,
-      budgetItems,
-      budgetVersion,
+      budgetItems: [],
+      budgetVersion: null,
       manualProgressChanges,
       budgetQuantityChanges,
       directionInspections,
@@ -348,7 +425,7 @@ export function ProjectStoreProvider({ children }: { children: ReactNode }) {
     setPhotos([]);
     setCommitments(commitmentItems);
     setDocuments(documentItems);
-    setBudgetItems(initialBudgetItems);
+    setBudgetItems([]);
     setBudgetVersion(null);
     setManualProgressChanges([]);
     setBudgetQuantityChanges([]);
@@ -398,15 +475,38 @@ export function ProjectStoreProvider({ children }: { children: ReactNode }) {
     currentUser: adminUsers.find((user) => user.email === "jose@doblealtura.com") ?? initialAdminUsers[0],
     addDailyActivity(activity) {
       setShouldPersist(true);
+      const quantity = Number(activity.quantity || 0);
       setActivities((current) => [
         {
           ...activity,
           id: "activity-" + Date.now(),
           projectId: project.id,
-          quantity: Number(activity.quantity || 0)
+          quantity
         },
         ...current
       ]);
+      if (activity.budgetItemId) {
+        const currentBudgetItem = budgetItems.find((item) => item.item === activity.budgetItemId);
+        if (currentBudgetItem) {
+          const nextExecutedQuantity = Math.min((currentBudgetItem.executedQuantity ?? 0) + quantity, currentBudgetItem.quantity);
+          updateProjectBudgetItemInSupabase(project.id, currentBudgetItem.item, { executedQuantity: nextExecutedQuantity })
+            .then((remoteItem) => {
+              setBudgetItems((current) => current.map((item) => (item.item === remoteItem.item ? remoteItem : item)));
+            })
+            .catch((error) => {
+              setSystemEvents((current) => [
+                {
+                  id: "event-daily-activity-budget-sync-error-" + Date.now(),
+                  time: new Date().toTimeString().slice(0, 5),
+                  title: "No fue posible sincronizar avance del Registro Diario en Supabase.",
+                  description: error instanceof Error ? error.message : "Error desconocido al actualizar presupuesto.",
+                  source: "Sistema"
+                },
+                ...current
+              ]);
+            });
+        }
+      }
     },
     addDailyCommitment(commitment) {
       setShouldPersist(true);
@@ -477,13 +577,28 @@ export function ProjectStoreProvider({ children }: { children: ReactNode }) {
     },
     importBudget(items, version) {
       setShouldPersist(true);
-      setBudgetItems(items);
-      setBudgetVersion(version);
-      setInitialSurvey(null);
-      setActivities([]);
-      setPlanningItems([]);
-      setManualProgressChanges([]);
-      setBudgetQuantityChanges([]);
+      replaceProjectBudgetInSupabase(project.id, items.map((item) => ({ ...item, executedQuantity: 0 })), version)
+        .then((remoteBudget) => {
+          setBudgetItems(remoteBudget.items);
+          setBudgetVersion(remoteBudget.version);
+          setInitialSurvey(null);
+          setActivities([]);
+          setPlanningItems([]);
+          setManualProgressChanges([]);
+          setBudgetQuantityChanges([]);
+        })
+        .catch((error) => {
+          setSystemEvents((current) => [
+            {
+              id: "event-budget-import-error-" + Date.now(),
+              time: new Date().toTimeString().slice(0, 5),
+              title: "No fue posible importar presupuesto en Supabase.",
+              description: error instanceof Error ? error.message : "Error desconocido al guardar presupuesto.",
+              source: "Sistema"
+            },
+            ...current
+          ]);
+        });
     },
     updateManualProgress(change) {
       setShouldPersist(true);
@@ -494,6 +609,22 @@ export function ProjectStoreProvider({ children }: { children: ReactNode }) {
         origin: "Edición manual de avance"
       };
       setManualProgressChanges((current) => [nextChange, ...current]);
+      updateProjectBudgetItemInSupabase(project.id, change.item, { executedQuantity: change.newQuantity })
+        .then((remoteItem) => {
+          setBudgetItems((current) => current.map((item) => (item.item === change.item ? remoteItem : item)));
+        })
+        .catch((error) => {
+          setSystemEvents((current) => [
+            {
+              id: "event-manual-progress-supabase-error-" + Date.now(),
+              time: new Date().toTimeString().slice(0, 5),
+              title: "No fue posible sincronizar avance manual en Supabase.",
+              description: error instanceof Error ? error.message : "Error desconocido al actualizar avance.",
+              source: "Sistema"
+            },
+            ...current
+          ]);
+        });
       setSystemEvents((current) => [
         {
           id: "event-manual-progress-" + Date.now(),
@@ -514,17 +645,26 @@ export function ProjectStoreProvider({ children }: { children: ReactNode }) {
         origin: "Correccion manual de cantidad presupuestada"
       };
       setBudgetQuantityChanges((current) => [nextChange, ...current]);
-      setBudgetItems((current) =>
-        current.map((item) =>
-          item.item === change.item
-            ? {
-                ...item,
-                quantity: change.newQuantity,
-                totalValue: change.newQuantity * item.unitValue
-              }
-            : item
-        )
-      );
+      const currentItem = budgetItems.find((item) => item.item === change.item);
+      updateProjectBudgetItemInSupabase(project.id, change.item, {
+        quantity: change.newQuantity,
+        totalValue: change.newQuantity * (currentItem?.unitValue ?? 0)
+      })
+        .then((remoteItem) => {
+          setBudgetItems((current) => current.map((item) => (item.item === change.item ? remoteItem : item)));
+        })
+        .catch((error) => {
+          setSystemEvents((current) => [
+            {
+              id: "event-budget-quantity-supabase-error-" + Date.now(),
+              time: new Date().toTimeString().slice(0, 5),
+              title: "No fue posible sincronizar cantidad presupuestada en Supabase.",
+              description: error instanceof Error ? error.message : "Error desconocido al actualizar presupuesto.",
+              source: "Sistema"
+            },
+            ...current
+          ]);
+        });
       setSystemEvents((current) => [
         {
           id: "event-budget-quantity-" + Date.now(),
@@ -538,7 +678,29 @@ export function ProjectStoreProvider({ children }: { children: ReactNode }) {
     },
     saveInitialSurvey(items, metadata) {
       setShouldPersist(true);
-      setBudgetItems(items);
+      Promise.all(
+        items.map((item) =>
+          updateProjectBudgetItemInSupabase(project.id, item.item, {
+            initialProgress: item.initialProgress ?? 0,
+            executedQuantity: item.executedQuantity ?? item.quantity * ((item.initialProgress ?? 0) / 100)
+          })
+        )
+      )
+        .then((remoteItems) => {
+          setBudgetItems((current) => current.map((item) => remoteItems.find((remoteItem) => remoteItem.item === item.item) ?? item));
+        })
+        .catch((error) => {
+          setSystemEvents((current) => [
+            {
+              id: "event-initial-survey-supabase-error-" + Date.now(),
+              time: new Date().toTimeString().slice(0, 5),
+              title: "No fue posible sincronizar levantamiento inicial en Supabase.",
+              description: error instanceof Error ? error.message : "Error desconocido al actualizar presupuesto.",
+              source: "Sistema"
+            },
+            ...current
+          ]);
+        });
       setInitialSurvey(metadata);
       setSystemEvents((current) => [
         {

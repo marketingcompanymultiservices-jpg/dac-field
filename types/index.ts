@@ -123,6 +123,7 @@ export type BudgetItem = {
   chapter: string;
   subchapter: string;
   initialProgress?: number;
+  executedQuantity?: number;
 };
 
 export type BudgetVersion = {

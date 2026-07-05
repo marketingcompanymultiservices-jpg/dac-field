@@ -30,7 +30,7 @@ export function buildProgressFromActivities(baseItems: BudgetItem[], activities:
       .filter((change) => change.item === item.item || change.activityId === item.item)
       .sort((a, b) => b.date.localeCompare(a.date))[0];
     const calculatedExecuted = initialExecutedQuantity + executedQuantity;
-    const manualExecuted = latestManualChange?.newQuantity;
+    const manualExecuted = item.executedQuantity ?? latestManualChange?.newQuantity;
     const cappedExecuted = Math.min(manualExecuted ?? calculatedExecuted, item.quantity);
     const progress = item.quantity === 0 ? 0 : Math.min(100, (cappedExecuted / item.quantity) * 100);
 
