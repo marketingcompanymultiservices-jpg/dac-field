@@ -297,8 +297,8 @@ export function ProjectStoreProvider({ children }: { children: ReactNode }) {
       setSystemEvents(storedState.systemEvents ?? []);
       setReports(storedState.reports);
       setAdminCompany(storedState.adminCompany ?? initialAdminCompany);
-      setAdminUsers(storedState.adminUsers ?? initialAdminUsers);
-      setAdminRoles((storedState.adminRoles ?? initialAdminRoles).map(normalizeRolePermissions));
+      setAdminUsers(mergeAdminUsers(storedState.adminUsers ?? initialAdminUsers));
+      setAdminRoles(mergeAdminRoles(storedState.adminRoles ?? initialAdminRoles));
       setAlertOverrides(storedState.alertOverrides ?? []);
       setKnownAlertIds(storedState.knownAlertIds ?? []);
       setHasLocalData(true);
@@ -961,4 +961,30 @@ function normalizeRolePermissions(role: AdminRole): AdminRole {
       ])
     ) as AdminRole["permissions"]
   };
+}
+
+function mergeAdminRoles(storedRoles: AdminRole[]) {
+  const byId = new Map(storedRoles.map((role) => [role.id, role]));
+  initialAdminRoles.forEach((role) => {
+    if (!byId.has(role.id)) byId.set(role.id, role);
+  });
+  return Array.from(byId.values()).map(normalizeRolePermissions);
+}
+
+function mergeAdminUsers(storedUsers: AdminUser[]) {
+  const byId = new Map(storedUsers.map((user) => [user.id, user]));
+  initialAdminUsers.forEach((user) => {
+    if (!byId.has(user.id)) byId.set(user.id, user);
+  });
+
+  const julianaSeed = initialAdminUsers.find((user) => user.id === "user-juliana-auxiliar");
+  if (julianaSeed && byId.has(julianaSeed.id)) {
+    byId.set(julianaSeed.id, {
+      ...byId.get(julianaSeed.id)!,
+      position: julianaSeed.position,
+      role: julianaSeed.role
+    });
+  }
+
+  return Array.from(byId.values());
 }

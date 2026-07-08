@@ -590,3 +590,14 @@ Manejo de items duplicados al importar presupuesto:
 - La resolucion automatica conserva el ITEM original visible y usa `import_order` como diferenciador tecnico.
 - Migracion requerida: `database/sprint-5-6-6-budget-duplicate-items.sql`.
 
+## Sprint 5.4C.4
+
+Usuario Juliana con rol Gestion Documental:
+
+- Se agrega el rol `Gestion Documental` a la matriz de permisos.
+- Juliana queda como usuaria activa con rol `Gestion Documental` en los datos base.
+- El rol puede ver Dashboard, Documentos, Reportes, Presupuesto, Registro Diario, Bitacora e Inspecciones de Direccion.
+- En Documentos puede cargar, clasificar, exportar e imprimir.
+- En Presupuesto e Inspecciones se ocultan acciones criticas cuando el rol solo tiene consulta.
+- Migracion opcional para perfil existente: `database/sprint-5-4c-4-juliana-gestion-documental.sql`.
+

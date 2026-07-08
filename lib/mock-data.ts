@@ -49,6 +49,24 @@ function buildAuxiliaryPermissionMatrix(): AdminPermissionMatrix {
   return matrix;
 }
 
+function buildDocumentManagementPermissionMatrix(): AdminPermissionMatrix {
+  const matrix = buildPermissionMatrix([]);
+  matrix.Dashboard.Ver = true;
+  matrix.Documentos.Ver = true;
+  matrix.Documentos.Crear = true;
+  matrix.Documentos.Editar = true;
+  matrix.Documentos.Exportar = true;
+  matrix.Documentos.Imprimir = true;
+  matrix.Reportes.Ver = true;
+  matrix.Reportes.Exportar = true;
+  matrix.Reportes.Imprimir = true;
+  matrix.Presupuesto.Ver = true;
+  matrix["Registro Diario"].Ver = true;
+  matrix.Bitacora.Ver = true;
+  matrix["Inspecciones de Direccion"].Ver = true;
+  return matrix;
+}
+
 function buildResidentPermissionMatrix(): AdminPermissionMatrix {
   const matrix = buildPermissionMatrix([]);
   matrix.Dashboard.Ver = true;
@@ -139,8 +157,8 @@ export const adminUsers: AdminUser[] = [
     firstName: "Juliana",
     lastName: "",
     email: "juliana@doblealtura.com",
-    position: "Auxiliar Administrativa",
-    role: "Auxiliar Administrativa",
+    position: "Gestion Documental",
+    role: "Gestion Documental",
     status: "Activo",
     phone: "+57 300 555 6677",
     company: "Doble Altura Construcciones S.A.S.",
@@ -155,6 +173,7 @@ export const adminRoles: AdminRole[] = [
   { id: "role-residente-obra", name: "Residente de Obra", description: "Registro diario, bitacora, fotografias, avances y consulta del presupuesto sin administracion de usuarios ni configuracion.", permissions: buildResidentPermissionMatrix() },
   { id: "role-interventoria", name: "Interventoria", description: "Consulta, observaciones y seguimiento documental.", permissions: buildPermissionMatrix(["Ver", "Crear", "Exportar"]) },
   { id: "role-supervisor", name: "Supervisor Tecnico", description: "Revision tecnica de avance, presupuesto y actividades.", permissions: buildPermissionMatrix(["Ver", "Editar"]) },
+  { id: "role-gestion-documental", name: "Gestion Documental", description: "Gestion documental del expediente de obra: carga, clasificacion, descarga, impresion y exportacion sin modificar informacion tecnica o financiera critica.", permissions: buildDocumentManagementPermissionMatrix() },
   { id: "role-auxiliar-administrativa", name: "Auxiliar Administrativa", description: "Puede ver informacion, descargar informes, imprimir reportes y exportar documentos. No puede eliminar, modificar presupuestos, crear obras, aprobar compras, cambiar usuarios ni configuracion.", permissions: buildAuxiliaryPermissionMatrix() },
   { id: "role-consulta", name: "Consulta", description: "Acceso de lectura para seguimiento sin modificacion.", permissions: buildPermissionMatrix(["Ver"]) }
 ];

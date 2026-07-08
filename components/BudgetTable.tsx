@@ -5,6 +5,7 @@ import { Fragment, useMemo, useState } from "react";
 import { BudgetFilters, type BudgetFilterState } from "@/components/BudgetFilters";
 import { useAuth } from "@/components/AuthProvider";
 import { getProgressStatus } from "@/lib/progress";
+import { useProjectStore } from "@/lib/project-store";
 import type { BudgetItem, BudgetProgressItem, BudgetQuantityChange, ManualProgressChange } from "@/types";
 
 const currencyFormatter = new Intl.NumberFormat("es-CO", {
@@ -40,6 +41,7 @@ export function BudgetTable({
   onUpdateBudgetQuantity: (change: Omit<BudgetQuantityChange, "id" | "date" | "origin">) => void;
 }) {
   const { profile, user } = useAuth();
+  const { adminRoles, currentUser } = useProjectStore();
   const [filters, setFilters] = useState<BudgetFilterState>(initialFilters);
   const [editingItem, setEditingItem] = useState("");
   const [baseQuantityDraft, setBaseQuantityDraft] = useState("");
@@ -48,6 +50,9 @@ export function BudgetTable({
   const [responsibleDraft, setResponsibleDraft] = useState("");
   const [message, setMessage] = useState("");
   const progressByItem = useMemo(() => new Map(progressItems.map((item) => [item.item, item])), [progressItems]);
+  const roleName = profile?.role ?? currentUser.role;
+  const roleConfig = adminRoles.find((role) => role.name === roleName);
+  const canEditBudget = roleName === "Administrador" || Boolean(roleConfig?.permissions.Presupuesto.Editar);
 
   const filteredItems = useMemo(() => {
     const search = filters.search.trim().toLowerCase();
@@ -227,9 +232,11 @@ export function BudgetTable({
                       <Link href={"/projects/" + projectId + "/activities/" + encodeURIComponent(item.item)} className="focus-ring inline-flex rounded-md bg-dac-primary px-2 py-1.5 text-center text-[11px] font-black text-white hover:bg-dac-secondary">
                         Ver actividad
                       </Link>
-                      <button type="button" onClick={() => startEditing(item)} className="focus-ring rounded-md border border-dac-primary px-2 py-1.5 text-[11px] font-black text-dac-primary hover:bg-dac-secondary/10">
-                        Editar avance
-                      </button>
+                      {canEditBudget && (
+                        <button type="button" onClick={() => startEditing(item)} className="focus-ring rounded-md border border-dac-primary px-2 py-1.5 text-[11px] font-black text-dac-primary hover:bg-dac-secondary/10">
+                          Editar avance
+                        </button>
+                      )}
                     </div>
                   </td>
                 </tr>

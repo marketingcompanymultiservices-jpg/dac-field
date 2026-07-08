@@ -70,13 +70,19 @@ const inputClass = "focus-ring mt-1 w-full rounded-md border border-dac-primary/
 export function DirectionInspectionsBoard() {
   const { profile, user } = useAuth();
   const {
+    adminRoles,
     adminUsers,
     addDirectionInspectionPhotos,
+    currentUser: localCurrentUser,
     photos,
     project,
     projects
   } = useProjectStore();
   const currentUser = profile ? (profile.firstName + " " + profile.lastName).trim() : user?.email ?? "Usuario DAC";
+  const roleName = profile?.role ?? localCurrentUser.role;
+  const roleConfig = adminRoles.find((role) => role.name === roleName);
+  const canCreateInspection = hasInspectionPermission("Crear", roleConfig, roleName);
+  const canEditInspection = hasInspectionPermission("Editar", roleConfig, roleName);
   const [draft, setDraft] = useState<InspectionDraft>({ ...emptyDraft, responsible: project.resident });
   const [observationFiles, setObservationFiles] = useState<File[]>([]);
   const [directionInspections, setDirectionInspections] = useState<DirectionInspection[]>([]);
@@ -220,38 +226,48 @@ export function DirectionInspectionsBoard() {
       </section>
 
       <section className="grid gap-4 xl:grid-cols-[420px_1fr]">
-        <form onSubmit={submitInspection} className="rounded-lg border border-dac-primary/15 bg-white p-4 shadow-panel">
-          <p className="text-sm font-black uppercase text-dac-secondary">Nueva inspeccion</p>
-          <h2 className="mt-1 text-xl font-black text-dac-primary">Recorrido de direccion</h2>
-          <div className="mt-4 grid gap-3">
-            <ReadOnly label="Obra" value={project.name} />
-            <ReadOnly label="Director que registra" value={currentUser} />
-            <Select label="Responsable" value={draft.responsible} options={responsibles} onChange={(value) => setDraft({ ...draft, responsible: value })} />
-            <Select label="Estado" value={draft.status} options={statuses} onChange={(value) => setDraft({ ...draft, status: value as DirectionInspectionStatus })} />
-            <div className="grid gap-3 sm:grid-cols-2">
-              <Field label="Torre" value={draft.tower} onChange={(value) => setDraft({ ...draft, tower: value })} />
-              <Field label="Piso" value={draft.floor} onChange={(value) => setDraft({ ...draft, floor: value })} />
+        {canCreateInspection ? (
+          <form onSubmit={submitInspection} className="rounded-lg border border-dac-primary/15 bg-white p-4 shadow-panel">
+            <p className="text-sm font-black uppercase text-dac-secondary">Nueva inspeccion</p>
+            <h2 className="mt-1 text-xl font-black text-dac-primary">Recorrido de direccion</h2>
+            <div className="mt-4 grid gap-3">
+              <ReadOnly label="Obra" value={project.name} />
+              <ReadOnly label="Director que registra" value={currentUser} />
+              <Select label="Responsable" value={draft.responsible} options={responsibles} onChange={(value) => setDraft({ ...draft, responsible: value })} />
+              <Select label="Estado" value={draft.status} options={statuses} onChange={(value) => setDraft({ ...draft, status: value as DirectionInspectionStatus })} />
+              <div className="grid gap-3 sm:grid-cols-2">
+                <Field label="Torre" value={draft.tower} onChange={(value) => setDraft({ ...draft, tower: value })} />
+                <Field label="Piso" value={draft.floor} onChange={(value) => setDraft({ ...draft, floor: value })} />
+              </div>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <Field label="Apartamento" value={draft.apartment} onChange={(value) => setDraft({ ...draft, apartment: value })} />
+                <Field label="Zona o frente" value={draft.workFront} onChange={(value) => setDraft({ ...draft, workFront: value })} />
+              </div>
+              <Select label="Clasificacion" value={draft.category} options={categories} onChange={(value) => setDraft({ ...draft, category: value as DirectionInspectionCategory })} />
+              <Select label="Prioridad" value={draft.priority} options={priorities} onChange={(value) => setDraft({ ...draft, priority: value as DirectionInspectionPriority })} />
+              <TextArea label="Observacion detallada" value={draft.description} onChange={(value) => setDraft({ ...draft, description: value })} />
+              <Field label="Fecha limite de atencion" type="date" value={draft.dueDate} onChange={(value) => setDraft({ ...draft, dueDate: value })} />
+              <TextArea label="Observaciones adicionales" value={draft.commitmentNotes} onChange={(value) => setDraft({ ...draft, commitmentNotes: value })} />
+              <label className="block text-sm font-bold text-dac-text">
+                Fotografias
+                <input type="file" multiple accept="image/*" onChange={(event) => setObservationFiles(Array.from(event.target.files ?? []))} className={inputClass} />
+              </label>
+              {observationFiles.length > 0 && <p className="text-xs font-bold text-dac-primary">{observationFiles.length} fotografias listas para guardar.</p>}
+              {message && <p className="rounded-md bg-dac-secondary/10 px-3 py-2 text-sm font-bold text-dac-primary">{message}</p>}
+              <button type="submit" className="focus-ring rounded-md bg-dac-primary px-4 py-3 text-sm font-black text-white hover:bg-dac-secondary">
+                Crear inspeccion
+              </button>
             </div>
-            <div className="grid gap-3 sm:grid-cols-2">
-              <Field label="Apartamento" value={draft.apartment} onChange={(value) => setDraft({ ...draft, apartment: value })} />
-              <Field label="Zona o frente" value={draft.workFront} onChange={(value) => setDraft({ ...draft, workFront: value })} />
-            </div>
-            <Select label="Clasificacion" value={draft.category} options={categories} onChange={(value) => setDraft({ ...draft, category: value as DirectionInspectionCategory })} />
-            <Select label="Prioridad" value={draft.priority} options={priorities} onChange={(value) => setDraft({ ...draft, priority: value as DirectionInspectionPriority })} />
-            <TextArea label="Observacion detallada" value={draft.description} onChange={(value) => setDraft({ ...draft, description: value })} />
-            <Field label="Fecha limite de atencion" type="date" value={draft.dueDate} onChange={(value) => setDraft({ ...draft, dueDate: value })} />
-            <TextArea label="Observaciones adicionales" value={draft.commitmentNotes} onChange={(value) => setDraft({ ...draft, commitmentNotes: value })} />
-            <label className="block text-sm font-bold text-dac-text">
-              Fotografias
-              <input type="file" multiple accept="image/*" onChange={(event) => setObservationFiles(Array.from(event.target.files ?? []))} className={inputClass} />
-            </label>
-            {observationFiles.length > 0 && <p className="text-xs font-bold text-dac-primary">{observationFiles.length} fotografias listas para guardar.</p>}
-            {message && <p className="rounded-md bg-dac-secondary/10 px-3 py-2 text-sm font-bold text-dac-primary">{message}</p>}
-            <button type="submit" className="focus-ring rounded-md bg-dac-primary px-4 py-3 text-sm font-black text-white hover:bg-dac-secondary">
-              Crear inspeccion
-            </button>
-          </div>
-        </form>
+          </form>
+        ) : (
+          <aside className="rounded-lg border border-dac-primary/15 bg-white p-4 shadow-panel">
+            <p className="text-sm font-black uppercase text-dac-secondary">Inspecciones de Direccion</p>
+            <h2 className="mt-1 text-xl font-black text-dac-primary">Modo consulta</h2>
+            <p className="mt-2 text-sm font-semibold text-dac-text/70">
+              Tu rol permite consultar inspecciones, pero no crear observaciones ni cambiar estados.
+            </p>
+          </aside>
+        )}
 
         <section className="grid gap-4">
           <FiltersPanel filters={filters} projects={projects} responsibles={responsibles} onChange={updateFilter} />
@@ -263,6 +279,7 @@ export function DirectionInspectionsBoard() {
               photos={photos}
               saveFiles={saveFiles}
               addPhotos={addDirectionInspectionPhotos}
+              canEdit={canEditInspection}
               onRemoteUpdate={(nextInspection) =>
                 setDirectionInspections((current) => current.map((item) => (item.id === nextInspection.id ? nextInspection : item)))
               }
@@ -284,6 +301,7 @@ function InspectionCard({
   photos,
   saveFiles,
   addPhotos,
+  canEdit,
   onRemoteUpdate
 }: {
   currentUser: string;
@@ -291,6 +309,7 @@ function InspectionCard({
   photos: Array<{ id: string; name: string }>;
   saveFiles: (files: File[], photoType: "observacion" | "correccion", inspectionId: string) => Promise<Array<{ id: string }>>;
   addPhotos: (photos: any[]) => void;
+  canEdit: boolean;
   onRemoteUpdate: (inspection: DirectionInspection) => void;
 }) {
   const [response, setResponse] = useState(inspection.response ?? "");
@@ -363,30 +382,39 @@ function InspectionCard({
             <Info label="Director" value={inspection.director} />
           </dl>
         </div>
-        <div className="grid min-w-48 gap-2">
-          {statuses.map((status) => (
-            <button key={status} type="button" onClick={() => updateStatus(status)} className="focus-ring rounded-md border border-dac-primary/15 px-3 py-2 text-sm font-bold text-dac-primary hover:bg-dac-secondary/10">
-              {status}
+        {canEdit && (
+          <div className="grid min-w-48 gap-2">
+            {statuses.map((status) => (
+              <button key={status} type="button" onClick={() => updateStatus(status)} className="focus-ring rounded-md border border-dac-primary/15 px-3 py-2 text-sm font-bold text-dac-primary hover:bg-dac-secondary/10">
+                {status}
+              </button>
+            ))}
+            <button type="button" onClick={() => updateStatus("Pendiente", "Inspeccion reabierta por Direccion.")} className="focus-ring rounded-md border border-dac-alert px-3 py-2 text-sm font-bold text-dac-alert hover:bg-dac-alert hover:text-white">
+              Reabrir
             </button>
-          ))}
-          <button type="button" onClick={() => updateStatus("Pendiente", "Inspeccion reabierta por Direccion.")} className="focus-ring rounded-md border border-dac-alert px-3 py-2 text-sm font-bold text-dac-alert hover:bg-dac-alert hover:text-white">
-            Reabrir
-          </button>
-        </div>
+          </div>
+        )}
       </div>
 
       <PhotoStrip title="Fotografias de observacion" photos={observationPhotos} />
 
-      <div className="mt-4 rounded-lg bg-dac-primary/[0.03] p-3">
-        <p className="text-sm font-black uppercase text-dac-secondary">Seguimiento</p>
-        <textarea value={response} onChange={(event) => setResponse(event.target.value)} className={inputClass + " min-h-24"} placeholder="Respuesta del responsable o revision de Direccion" />
-        <input type="file" multiple accept="image/*" onChange={(event) => setCorrectionFiles(Array.from(event.target.files ?? []))} className={inputClass} />
-        <div className="mt-3 flex flex-wrap gap-2">
-          <button type="button" onClick={submitResponse} className="focus-ring rounded-md bg-dac-primary px-4 py-2 text-sm font-black text-white hover:bg-dac-secondary">Guardar seguimiento</button>
-          <button type="button" onClick={() => updateStatus("Cerrada", "Cierre aprobado por Direccion.")} className="focus-ring rounded-md border border-dac-primary px-4 py-2 text-sm font-black text-dac-primary hover:bg-dac-primary hover:text-white">Aprobar cierre</button>
+      {canEdit ? (
+        <div className="mt-4 rounded-lg bg-dac-primary/[0.03] p-3">
+          <p className="text-sm font-black uppercase text-dac-secondary">Seguimiento</p>
+          <textarea value={response} onChange={(event) => setResponse(event.target.value)} className={inputClass + " min-h-24"} placeholder="Respuesta del responsable o revision de Direccion" />
+          <input type="file" multiple accept="image/*" onChange={(event) => setCorrectionFiles(Array.from(event.target.files ?? []))} className={inputClass} />
+          <div className="mt-3 flex flex-wrap gap-2">
+            <button type="button" onClick={submitResponse} className="focus-ring rounded-md bg-dac-primary px-4 py-2 text-sm font-black text-white hover:bg-dac-secondary">Guardar seguimiento</button>
+            <button type="button" onClick={() => updateStatus("Cerrada", "Cierre aprobado por Direccion.")} className="focus-ring rounded-md border border-dac-primary px-4 py-2 text-sm font-black text-dac-primary hover:bg-dac-primary hover:text-white">Aprobar cierre</button>
+          </div>
+          {message && <p className="mt-3 rounded-md bg-dac-secondary/10 px-3 py-2 text-sm font-bold text-dac-primary">{message}</p>}
         </div>
-        {message && <p className="mt-3 rounded-md bg-dac-secondary/10 px-3 py-2 text-sm font-bold text-dac-primary">{message}</p>}
-      </div>
+      ) : (
+        <div className="mt-4 rounded-lg bg-dac-primary/[0.03] p-3">
+          <p className="text-sm font-black uppercase text-dac-secondary">Seguimiento</p>
+          <p className="mt-1 text-sm font-semibold text-dac-text/70">{inspection.response || "Sin respuesta registrada."}</p>
+        </div>
+      )}
 
       <PhotoStrip title="Fotografias de correccion" photos={correctionPhotos} />
 
@@ -493,6 +521,15 @@ function Metric({ label, value, tone }: { label: string; value: number; tone: "p
       <p className="mt-2 text-3xl font-black">{value}</p>
     </article>
   );
+}
+
+function hasInspectionPermission(
+  action: "Crear" | "Editar",
+  roleConfig: { permissions: { "Inspecciones de Direccion": Partial<Record<string, boolean>> } } | undefined,
+  roleName: string
+) {
+  if (roleName === "Administrador") return true;
+  return Boolean(roleConfig?.permissions["Inspecciones de Direccion"]?.[action]);
 }
 
 function Info({ label, value }: { label: string; value: string }) {
