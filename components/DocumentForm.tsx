@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef } from "react";
+import { useRef, useState } from "react";
 import type { DocumentStatus, ProjectDocument } from "@/types";
 
 const inputClass = "focus-ring mt-2 w-full rounded-md border border-dac-primary/20 px-4 py-3";
@@ -8,10 +8,12 @@ const labelClass = "text-sm font-bold text-dac-text";
 
 export function DocumentForm({
   folders,
-  onAdd
+  onAdd,
+  defaultUser
 }: {
   folders: string[];
-  onAdd: (document: ProjectDocument) => void;
+  defaultUser: string;
+  onAdd: (document: Omit<ProjectDocument, "id"> & { file: File }) => Promise<void>;
 }) {
   const formRef = useRef<HTMLFormElement>(null);
   const nameRef = useRef<HTMLInputElement>(null);
@@ -23,34 +25,51 @@ export function DocumentForm({
   const userRef = useRef<HTMLInputElement>(null);
   const observationRef = useRef<HTMLTextAreaElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+  const [message, setMessage] = useState("");
+  const [isSaving, setIsSaving] = useState(false);
 
-  function handleAdd() {
+  async function handleAdd() {
     const name = nameRef.current?.value.trim() ?? "";
     const folder = folderRef.current?.value ?? folders[0];
     const version = Number(versionRef.current?.value || 1);
     const status = (statusRef.current?.value ?? "Vigente") as DocumentStatus;
-    const uploadDate = uploadDateRef.current?.value ?? "";
+    const uploadDate = uploadDateRef.current?.value || new Date().toISOString().slice(0, 10);
     const expirationDate = expirationDateRef.current?.value || undefined;
-    const user = userRef.current?.value.trim() ?? "";
+    const user = userRef.current?.value.trim() || defaultUser;
     const observation = observationRef.current?.value.trim() ?? "";
-    const simulatedFile = fileRef.current?.value.trim() || "archivo-simulado.pdf";
+    const file = fileRef.current?.files?.[0];
 
-    if (!name || !folder || !uploadDate || !user) return;
+    if (!name || !folder || !uploadDate || !user || !file) {
+      setMessage("Nombre, carpeta, fecha, usuario y archivo son obligatorios.");
+      return;
+    }
 
-    onAdd({
-      id: "document-" + Date.now(),
-      name,
-      folder,
-      version,
-      status,
-      uploadDate,
-      expirationDate,
-      user,
-      observation: observation || "Sin observacion.",
-      simulatedFile
-    });
+    try {
+      setIsSaving(true);
+      setMessage("");
+      await onAdd({
+        name,
+        folder,
+        version,
+        status,
+        uploadDate,
+        expirationDate,
+        user,
+        observation: observation || "Sin observacion.",
+        simulatedFile: file.name,
+        fileName: file.name,
+        fileType: file.type,
+        fileSize: file.size,
+        file
+      });
 
-    formRef.current?.reset();
+      formRef.current?.reset();
+      setMessage("Documento cargado correctamente.");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "No fue posible cargar el documento.");
+    } finally {
+      setIsSaving(false);
+    }
   }
 
   return (
@@ -88,7 +107,7 @@ export function DocumentForm({
         </label>
         <label className={labelClass}>
           Fecha de carga
-          <input ref={uploadDateRef} name="uploadDate" type="date" className={inputClass} />
+          <input ref={uploadDateRef} name="uploadDate" type="date" defaultValue={new Date().toISOString().slice(0, 10)} className={inputClass} />
         </label>
         <label className={labelClass}>
           Fecha de vencimiento opcional
@@ -96,20 +115,22 @@ export function DocumentForm({
         </label>
         <label className={labelClass}>
           Usuario
-          <input ref={userRef} name="user" className={inputClass} placeholder="Usuario que carga" />
+          <input ref={userRef} name="user" defaultValue={defaultUser} className={inputClass} placeholder="Usuario que carga" />
         </label>
         <label className={labelClass + " lg:col-span-2"}>
           Observacion
           <textarea ref={observationRef} name="observation" rows={3} className={inputClass + " resize-y"} placeholder="Notas del documento" />
         </label>
         <label className={labelClass + " lg:col-span-2"}>
-          Archivo simulado
-          <input ref={fileRef} name="simulatedFile" className={inputClass} placeholder="documento-simulado.pdf" />
+          Archivo
+          <input ref={fileRef} name="file" type="file" className={inputClass} />
         </label>
       </div>
 
-      <button type="button" onClick={handleAdd} className="focus-ring mt-5 w-full rounded-md bg-dac-primary px-5 py-3 font-bold text-white hover:bg-dac-secondary sm:w-auto">
-        Agregar documento
+      {message && <p className="mt-4 rounded-md bg-dac-secondary/10 px-4 py-3 text-sm font-bold text-dac-primary">{message}</p>}
+
+      <button type="button" onClick={handleAdd} disabled={isSaving} className="focus-ring mt-5 w-full rounded-md bg-dac-primary px-5 py-3 font-bold text-white hover:bg-dac-secondary disabled:cursor-not-allowed disabled:bg-dac-primary/35 sm:w-auto">
+        {isSaving ? "Cargando..." : "Agregar documento"}
       </button>
     </form>
   );

@@ -237,6 +237,7 @@ export type DocumentStatus = "Vigente" | "Proxima a vencer" | "Reemplazado" | "A
 
 export type ProjectDocument = {
   id: string;
+  projectId?: string;
   name: string;
   folder: string;
   version: number;
@@ -246,6 +247,12 @@ export type ProjectDocument = {
   user: string;
   observation: string;
   simulatedFile?: string;
+  fileName?: string;
+  fileType?: string;
+  fileSize?: number;
+  storagePath?: string;
+  publicUrl?: string;
+  uploadedBy?: string;
 };
 
 export type ReportType =

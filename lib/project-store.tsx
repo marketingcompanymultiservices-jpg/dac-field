@@ -98,6 +98,7 @@ type ProjectStoreValue = {
   addCommitment: (commitment: Commitment) => void;
   updateCommitmentStatus: (id: string, status: CommitmentStatus) => void;
   addDocument: (document: ProjectDocument) => void;
+  setProjectDocuments: (documents: ProjectDocument[]) => void;
   addReport: (report: ProjectReport) => void;
   deleteDraftReport: (id: string) => void;
   importBudget: (items: BudgetItem[], version: BudgetVersion) => Promise<void>;
@@ -566,6 +567,10 @@ export function ProjectStoreProvider({ children }: { children: ReactNode }) {
     addDocument(document) {
       setShouldPersist(true);
       setDocuments((current) => [document, ...current]);
+    },
+    setProjectDocuments(nextDocuments) {
+      setShouldPersist(true);
+      setDocuments(nextDocuments);
     },
     addReport(report) {
       setShouldPersist(true);

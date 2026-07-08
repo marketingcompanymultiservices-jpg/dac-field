@@ -601,3 +601,14 @@ Usuario Juliana con rol Gestion Documental:
 - En Presupuesto e Inspecciones se ocultan acciones criticas cuando el rol solo tiene consulta.
 - Migracion opcional para perfil existente: `database/sprint-5-4c-4-juliana-gestion-documental.sql`.
 
+## Correccion Gestion Documental
+
+Carga real de documentos para Juliana:
+
+- El modulo Documentos carga metadatos desde `project_documents`.
+- Los archivos se suben al bucket privado `dac-project-documents` de Supabase Storage.
+- El formulario de documentos usa archivo real y guarda nombre, carpeta, proyecto, usuario, fecha, observacion, tipo, tamano y ruta Storage.
+- La descarga usa URL firmada temporal y respeta permiso `Documentos.Exportar`.
+- La impresion respeta permiso `Documentos.Imprimir`.
+- Migracion requerida: `database/sprint-5-4c-5-documents-storage.sql`.
+
