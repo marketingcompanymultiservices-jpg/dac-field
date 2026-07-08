@@ -55,6 +55,7 @@ export function FieldMode() {
   const [commitmentPriority, setCommitmentPriority] = useState<CommitmentPriority>("Media");
   const [message, setMessage] = useState("");
   const [photoMessage, setPhotoMessage] = useState("");
+  const [isSendingReport, setIsSendingReport] = useState(false);
   const [photoPreviews, setPhotoPreviews] = useState<Record<string, string>>({});
 
   const currentUserName = profile ? (profile.firstName + " " + profile.lastName).trim() : user?.email ?? project.resident;
@@ -98,7 +99,7 @@ export function FieldMode() {
   useEffect(() => {
     let active = true;
     async function loadPreviews() {
-      const entries = await Promise.all(currentPhotos.map(async (photo) => [photo.id, await getImage(photo.id)] as const));
+      const entries = await Promise.all(currentPhotos.map(async (photo) => [photo.id, photo.imageData || (await getImage(photo.id))] as const));
       if (active) setPhotoPreviews(Object.fromEntries(entries.filter(([, dataUrl]) => Boolean(dataUrl))));
     }
     loadPreviews();
@@ -210,27 +211,35 @@ export function FieldMode() {
     });
   }
 
-  function sendReport() {
-    saveDailyReport(
-      {
-        date: today,
-        time: new Date().toTimeString().slice(0, 5),
-        weather: report.weather,
-        administrativeStaff: currentUserName,
-        operativeStaff: report.personal,
-        contractors: "",
-        equipment: "",
-        material: "",
-        observations: report.observations,
-        problems: "",
-        actions: "",
-        signature: currentUserName,
-        createdBy: currentUserEmail,
-        updatedBy: currentUserEmail
-      },
-      "Enviado"
-    );
-    setMessage("Reporte enviado desde Modo Obra.");
+  async function sendReport() {
+    setIsSendingReport(true);
+    setMessage("");
+    try {
+      await saveDailyReport(
+        {
+          date: today,
+          time: new Date().toTimeString().slice(0, 5),
+          weather: report.weather,
+          administrativeStaff: currentUserName,
+          operativeStaff: report.personal,
+          contractors: "",
+          equipment: "",
+          material: "",
+          observations: report.observations,
+          problems: "",
+          actions: "",
+          signature: currentUserName,
+          createdBy: currentUserEmail,
+          updatedBy: currentUserEmail
+        },
+        "Enviado"
+      );
+      setMessage("Reporte enviado desde Modo Obra y visible para el proyecto.");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "No fue posible enviar el reporte a Supabase.");
+    } finally {
+      setIsSendingReport(false);
+    }
   }
 
   return (
@@ -378,8 +387,8 @@ export function FieldMode() {
         <section id="enviar" className="rounded-lg border border-dac-primary/10 bg-white p-4 shadow-sm">
           <SectionTitle eyebrow="Cierre" title="Enviar reporte" />
           <TextArea label="Observacion general" value={report.observations} placeholder="Resumen corto de la jornada" onChange={(value) => updateReport("observations", value)} />
-          <button type="button" onClick={sendReport} className="focus-ring mt-4 w-full rounded-lg bg-dac-secondary px-5 py-5 text-lg font-black text-dac-primary hover:bg-dac-primary hover:text-white">
-            Enviar reporte
+          <button type="button" disabled={isSendingReport} onClick={sendReport} className="focus-ring mt-4 w-full rounded-lg bg-dac-secondary px-5 py-5 text-lg font-black text-dac-primary hover:bg-dac-primary hover:text-white disabled:cursor-not-allowed disabled:opacity-60">
+            {isSendingReport ? "Enviando..." : "Enviar reporte"}
           </button>
         </section>
 

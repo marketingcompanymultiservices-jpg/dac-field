@@ -612,3 +612,14 @@ Carga real de documentos para Juliana:
 - La impresion respeta permiso `Documentos.Imprimir`.
 - Migracion requerida: `database/sprint-5-4c-5-documents-storage.sql`.
 
+## Sprint 5.7
+
+Registro Diario y Reportes Diarios compartidos por proyecto:
+
+- El Registro Diario deja de depender del navegador local para ser visible entre usuarios.
+- Los reportes se guardan y consultan desde Supabase por `project_id`.
+- Se agregan tablas remotas para `daily_reports`, `report_activities`, `report_photos` y `commitments`.
+- El guardado usa la funcion transaccional `save_daily_report_bundle(payload)` para registrar reporte, actividades, fotografias y compromisos juntos.
+- La consola informa proyecto consultado, usuario autenticado, consulta ejecutada, origen de datos y cantidades encontradas.
+- Migracion requerida: `database/sprint-5-7-daily-reports-supabase.sql`.
+

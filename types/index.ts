@@ -192,6 +192,9 @@ export type DailyPhoto = {
   type?: string;
   size?: number;
   storage?: "indexedDB" | "localStorage";
+  imageData?: string;
+  createdBy?: string;
+  updatedBy?: string;
 };
 
 export type DailyReportEntry = {
@@ -229,6 +232,7 @@ export type Commitment = {
   createdAt?: string;
   projectId?: string;
   budgetItemId?: string;
+  dailyReportId?: string;
   createdBy?: string;
   updatedBy?: string;
 };

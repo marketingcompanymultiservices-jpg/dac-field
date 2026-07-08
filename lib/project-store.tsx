@@ -17,12 +17,13 @@ import {
 } from "@/lib/mock-data";
 import { buildProgressFromActivities, calculateProgressSummary } from "@/lib/progress";
 import { addDaysISO, getWeekStartISO } from "@/lib/planning";
-import { clearImages } from "@/lib/imageStorage";
+import { clearImages, getImage } from "@/lib/imageStorage";
 import { buildProgrammedRows, calculateProgrammedSummary } from "@/lib/programmed-progress";
 import { buildSmartAlerts } from "@/lib/alerts";
 import { buildActivityProductivity, calculateProductivitySummary } from "@/lib/productivity";
 import { clearAppState, loadAppState, saveAppState } from "@/lib/storage";
 import { loadProjectBudgetFromSupabase, replaceProjectBudgetInSupabase, updateProjectBudgetItemInSupabase } from "@/lib/supabase/budget";
+import { loadDailyReportBundleFromSupabase, saveDailyReportBundleToSupabase } from "@/lib/supabase/daily-reports";
 import type {
   ActivityPlanning,
   AdminCompany,
@@ -94,7 +95,7 @@ type ProjectStoreValue = {
   updateDailyPhotoDescription: (id: string, description: string) => void;
   updateDailyPhotoDetails: (id: string, details: Pick<DailyPhoto, "description" | "activityId">) => void;
   deleteDailyPhoto: (id: string) => void;
-  saveDailyReport: (report: Omit<DailyReportEntry, "id" | "projectId" | "status">, status: DailyReportEntry["status"]) => void;
+  saveDailyReport: (report: Omit<DailyReportEntry, "id" | "projectId" | "status">, status: DailyReportEntry["status"]) => Promise<void>;
   addCommitment: (commitment: Commitment) => void;
   updateCommitmentStatus: (id: string, status: CommitmentStatus) => void;
   addDocument: (document: ProjectDocument) => void;
@@ -261,19 +262,41 @@ export function ProjectStoreProvider({ children }: { children: ReactNode }) {
     [activities, commitments, photos.length, project.progress]
   );
 
-  function saveReport(report: Omit<DailyReportEntry, "id" | "projectId" | "status">, status: DailyReportEntry["status"]) {
-    setShouldPersist(true);
+  async function saveReport(report: Omit<DailyReportEntry, "id" | "projectId" | "status">, status: DailyReportEntry["status"]) {
     const reportId = "daily-report-" + Date.now();
-    setDailyReports((current) => [
-      {
-        ...report,
-        id: reportId,
-        projectId: project.id,
-        status
-      },
-      ...current
-    ]);
-    setPhotos((current) => current.map((photo) => (photo.date === report.date && !photo.reportId && !photo.dailyReportId ? { ...photo, reportId, dailyReportId: reportId } : photo)));
+    const nextReport: DailyReportEntry = {
+      ...report,
+      id: reportId,
+      projectId: project.id,
+      status
+    };
+    const reportActivities = activities.filter((activity) => activity.projectId === project.id && activity.date === report.date);
+    const reportCommitments = commitments
+      .filter((commitment) => commitment.projectId === project.id && commitment.origin === "Registro Diario")
+      .map((commitment) => ({ ...commitment, dailyReportId: commitment.dailyReportId ?? reportId }));
+    const reportPhotos = await Promise.all(
+      photos
+        .filter((photo) => photo.projectId === project.id && photo.date === report.date)
+        .map(async (photo) => ({
+          ...photo,
+          reportId,
+          dailyReportId: reportId,
+          imageData: photo.imageData || (await getImage(photo.id).catch(() => ""))
+        }))
+    );
+
+    await saveDailyReportBundleToSupabase({
+      projectId: project.id,
+      report: nextReport,
+      activities: reportActivities,
+      photos: reportPhotos,
+      commitments: reportCommitments
+    });
+
+    setShouldPersist(true);
+    setDailyReports((current) => [nextReport, ...current.filter((item) => item.id !== reportId)]);
+    setCommitments((current) => current.map((commitment) => (reportCommitments.some((item) => item.id === commitment.id) ? { ...commitment, dailyReportId: reportId } : commitment)));
+    setPhotos((current) => current.map((photo) => (photo.date === report.date && photo.projectId === project.id ? { ...photo, reportId, dailyReportId: reportId } : photo)));
   }
 
   useEffect(() => {
@@ -379,6 +402,47 @@ export function ProjectStoreProvider({ children }: { children: ReactNode }) {
     }
 
     loadRemoteBudget();
+    return () => {
+      active = false;
+    };
+  }, [isHydrated, projectBase.id]);
+
+  useEffect(() => {
+    if (!isHydrated) return;
+
+    let active = true;
+    async function loadRemoteDailyReports() {
+      try {
+        const remoteBundle = await loadDailyReportBundleFromSupabase(projectBase.id);
+        if (!active) return;
+
+        setDailyReports(remoteBundle.dailyReports);
+        setActivities(remoteBundle.activities);
+        setPhotos(remoteBundle.photos);
+        setCommitments(remoteBundle.commitments.length > 0 ? remoteBundle.commitments : commitmentItems);
+        setShouldPersist(true);
+      } catch (error) {
+        if (!active) return;
+        console.error("[DAC DailyReports] No fue posible cargar reportes diarios desde Supabase", {
+          origin: "Supabase",
+          projectId: projectBase.id,
+          error
+        });
+        setSystemEvents((current) => [
+          {
+            id: "event-daily-reports-supabase-error-" + Date.now(),
+            time: new Date().toTimeString().slice(0, 5),
+            title: "No fue posible cargar reportes diarios desde Supabase.",
+            description: error instanceof Error ? error.message : "Error desconocido al consultar reportes diarios.",
+            source: "Sistema"
+          },
+          ...current
+        ]);
+        setShouldPersist(true);
+      }
+    }
+
+    loadRemoteDailyReports();
     return () => {
       active = false;
     };

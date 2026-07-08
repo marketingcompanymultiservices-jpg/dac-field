@@ -134,7 +134,7 @@ export async function compressImage(file: File) {
 export const compressImageIfPossible = compressImage;
 
 async function hydratePhotos(photos: DailyPhoto[]) {
-  const entries = await Promise.all(photos.map(async (photo) => ({ photo, dataUrl: await getImage(photo.id) })));
+  const entries = await Promise.all(photos.map(async (photo) => ({ photo, dataUrl: photo.imageData || (await getImage(photo.id)) })));
   return entries.filter((entry) => entry.dataUrl);
 }
 

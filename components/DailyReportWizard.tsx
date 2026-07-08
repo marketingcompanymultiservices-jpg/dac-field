@@ -99,6 +99,7 @@ export function DailyReportWizard({ projectName }: { projectName: string }) {
   const [report, setReport] = useState<ReportData>(initialReport);
   const [message, setMessage] = useState("");
   const [photoMessage, setPhotoMessage] = useState("");
+  const [isSavingReport, setIsSavingReport] = useState(false);
   const [photoPreviews, setPhotoPreviews] = useState<Record<string, string>>({});
   const [activityDraft, setActivityDraft] = useState<ActivityDraft>(getEmptyActivityDraft());
   const [activitySearch, setActivitySearch] = useState("");
@@ -132,7 +133,7 @@ export function DailyReportWizard({ projectName }: { projectName: string }) {
 
     async function loadPreviews() {
       const entries = await Promise.all(
-        currentPhotos.map(async (photo) => [photo.id, await getImage(photo.id)] as const)
+        currentPhotos.map(async (photo) => [photo.id, photo.imageData || (await getImage(photo.id))] as const)
       );
       if (active) setPhotoPreviews(Object.fromEntries(entries.filter(([, dataUrl]) => Boolean(dataUrl))));
     }
@@ -266,27 +267,35 @@ export function DailyReportWizard({ projectName }: { projectName: string }) {
     });
   }
 
-  function persistReport(status: "Borrador" | "Enviado") {
-    saveDailyReport(
-      {
-        date: getReportDate(),
-        time: getReportTime(),
-        weather: report.weather,
-        administrativeStaff: report.administrativeStaff,
-        operativeStaff: report.operativeStaff,
-        contractors: report.contractors,
-        equipment: report.equipment,
-        material: report.material,
-        observations: report.observations,
-        problems: report.problems,
-        actions: report.actions,
-        signature: report.signature || currentUserName,
-        createdBy: currentUserEmail,
-        updatedBy: currentUserEmail
-      },
-      status
-    );
-    setMessage(status === "Borrador" ? "Borrador guardado en el store global." : "Registro enviado y disponible para reportes.");
+  async function persistReport(status: "Borrador" | "Enviado") {
+    setIsSavingReport(true);
+    setMessage("");
+    try {
+      await saveDailyReport(
+        {
+          date: getReportDate(),
+          time: getReportTime(),
+          weather: report.weather,
+          administrativeStaff: report.administrativeStaff,
+          operativeStaff: report.operativeStaff,
+          contractors: report.contractors,
+          equipment: report.equipment,
+          material: report.material,
+          observations: report.observations,
+          problems: report.problems,
+          actions: report.actions,
+          signature: report.signature || currentUserName,
+          createdBy: currentUserEmail,
+          updatedBy: currentUserEmail
+        },
+        status
+      );
+      setMessage(status === "Borrador" ? "Borrador guardado en Supabase." : "Registro enviado y disponible para todos los usuarios autorizados.");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "No fue posible guardar el reporte diario en Supabase.");
+    } finally {
+      setIsSavingReport(false);
+    }
   }
 
   return (
@@ -523,8 +532,8 @@ export function DailyReportWizard({ projectName }: { projectName: string }) {
           <button type="button" onClick={() => setCurrentStep((step) => Math.min(steps.length - 1, step + 1))} disabled={isLastStep} className="focus-ring rounded-md bg-dac-primary px-4 py-3 font-bold text-white hover:bg-dac-secondary disabled:cursor-not-allowed disabled:bg-dac-primary/35">Siguiente</button>
         </div>
         <div className="grid grid-cols-1 gap-3 sm:flex">
-          <button type="button" onClick={() => persistReport("Borrador")} className="focus-ring rounded-md border border-dac-alert px-4 py-3 font-bold text-dac-alert hover:bg-dac-alert hover:text-white">Guardar borrador</button>
-          <button type="button" onClick={() => persistReport("Enviado")} className="focus-ring rounded-md bg-dac-secondary px-4 py-3 font-bold text-dac-primary hover:bg-dac-primary hover:text-white">Enviar registro</button>
+          <button type="button" disabled={isSavingReport} onClick={() => persistReport("Borrador")} className="focus-ring rounded-md border border-dac-alert px-4 py-3 font-bold text-dac-alert hover:bg-dac-alert hover:text-white disabled:cursor-not-allowed disabled:opacity-60">Guardar borrador</button>
+          <button type="button" disabled={isSavingReport} onClick={() => persistReport("Enviado")} className="focus-ring rounded-md bg-dac-secondary px-4 py-3 font-bold text-dac-primary hover:bg-dac-primary hover:text-white disabled:cursor-not-allowed disabled:opacity-60">{isSavingReport ? "Guardando..." : "Enviar registro"}</button>
         </div>
       </div>
     </section>
