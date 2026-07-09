@@ -220,7 +220,7 @@ export function DailyReportWizard({ projectName }: { projectName: string }) {
 
     setActivityDraft(getEmptyActivityDraft());
     setActivitySearch("");
-    setMessage("Actividad agregada al avance, bitacora y dashboard.");
+    setMessage("Actividad agregada al Registro Diario, avance y dashboard.");
   }
 
   function addCommitment() {
@@ -234,7 +234,7 @@ export function DailyReportWizard({ projectName }: { projectName: string }) {
       updatedBy: currentUserEmail
     });
     setCommitmentDraft({ description: "", owner: "", dueDate: "", priority: "Media" });
-    setMessage("Compromiso agregado al modulo Compromisos y a la bitacora.");
+    setMessage("Compromiso agregado al Registro Diario y al modulo Compromisos.");
   }
 
   async function handleImageUpload(files: FileList | null) {

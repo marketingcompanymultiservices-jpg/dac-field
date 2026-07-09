@@ -9,7 +9,6 @@ import { useProjectStore } from "@/lib/project-store";
 const actions = [
   ["Modo Obra", "../../field"],
   ["Registro Diario", "daily-report"],
-  ["Bitacora", "bitacora"],
   ["Presupuesto", "budget"],
   ["Levantamiento Inicial", "initial-survey"],
   ["Inspecciones de Dirección", "direction-inspections"],

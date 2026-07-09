@@ -67,7 +67,7 @@ export function CommitmentForm({ onAdd }: { onAdd: (commitment: Commitment) => v
         </label>
         <label className={labelClass}>
           Origen
-          <input ref={originRef} name="origin" className={inputClass} placeholder="Registro Diario, Bitacora, Interventoria" />
+          <input ref={originRef} name="origin" className={inputClass} placeholder="Registro Diario, Interventoria" />
         </label>
       </div>
 

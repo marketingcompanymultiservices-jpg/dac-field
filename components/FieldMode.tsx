@@ -161,7 +161,7 @@ export function FieldMode() {
     });
     setActivityDraft(getEmptyActivityDraft());
     setActivitySearch("");
-    setMessage("Actividad registrada en Avance, Bitacora y Dashboard.");
+    setMessage("Actividad registrada en Registro Diario, Avance y Dashboard.");
   }
 
   function addCompactCommitment() {

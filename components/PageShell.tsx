@@ -59,7 +59,6 @@ export function PageShell({
       title: "Control",
       items: [
         { label: "Registro Diario", href: "/projects/" + projectId + "/daily-report", permission: "Registro Diario" },
-        { label: "Bitácora", href: "/projects/" + projectId + "/bitacora", permission: "Bitacora" },
         { label: "Inspecciones de Dirección", href: "/projects/" + projectId + "/direction-inspections", permission: "Inspecciones de Direccion" },
         { label: "Compromisos", href: "/projects/" + projectId + "/commitments", permission: "Compromisos" },
         { label: "Alertas", href: "/projects/" + projectId + "/alerts" }

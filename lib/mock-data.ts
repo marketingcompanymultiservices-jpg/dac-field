@@ -11,14 +11,12 @@ import type {
   Project,
   ProjectDocument,
   ProjectReport,
-  ReportType,
-  TimelineEvent
+  ReportType
 } from "@/types";
 
 export const permissionModules: AdminPermissionModule[] = [
   "Dashboard",
   "Registro Diario",
-  "Bitacora",
   "Avance",
   "Presupuesto",
   "Reportes",
@@ -62,7 +60,6 @@ function buildDocumentManagementPermissionMatrix(): AdminPermissionMatrix {
   matrix.Reportes.Imprimir = true;
   matrix.Presupuesto.Ver = true;
   matrix["Registro Diario"].Ver = true;
-  matrix.Bitacora.Ver = true;
   matrix["Inspecciones de Direccion"].Ver = true;
   return matrix;
 }
@@ -73,7 +70,6 @@ function buildResidentPermissionMatrix(): AdminPermissionMatrix {
   matrix["Registro Diario"].Ver = true;
   matrix["Registro Diario"].Crear = true;
   matrix["Registro Diario"].Editar = true;
-  matrix.Bitacora.Ver = true;
   matrix.Avance.Ver = true;
   matrix.Avance.Crear = true;
   matrix.Avance.Editar = true;
@@ -170,7 +166,7 @@ export const adminUsers: AdminUser[] = [
 export const adminRoles: AdminRole[] = [
   { id: "role-admin", name: "Administrador", description: "Control total de la plataforma y configuracion.", permissions: buildPermissionMatrix(permissionActions) },
   { id: "role-director-administrativo", name: "Director Administrativo", description: "Gestion integral administrativa, reportes, seguimiento directivo y control de usuarios.", permissions: buildPermissionMatrix(["Ver", "Crear", "Editar", "Exportar", "Imprimir"]) },
-  { id: "role-residente-obra", name: "Residente de Obra", description: "Registro diario, bitacora, fotografias, avances y consulta del presupuesto sin administracion de usuarios ni configuracion.", permissions: buildResidentPermissionMatrix() },
+  { id: "role-residente-obra", name: "Residente de Obra", description: "Registro Diario, fotografias, avances y consulta del presupuesto sin administracion de usuarios ni configuracion.", permissions: buildResidentPermissionMatrix() },
   { id: "role-interventoria", name: "Interventoria", description: "Consulta, observaciones y seguimiento documental.", permissions: buildPermissionMatrix(["Ver", "Crear", "Exportar"]) },
   { id: "role-supervisor", name: "Supervisor Tecnico", description: "Revision tecnica de avance, presupuesto y actividades.", permissions: buildPermissionMatrix(["Ver", "Editar"]) },
   { id: "role-gestion-documental", name: "Gestion Documental", description: "Gestion documental del expediente de obra: carga, clasificacion, descarga, impresion y exportacion sin modificar informacion tecnica o financiera critica.", permissions: buildDocumentManagementPermissionMatrix() },
@@ -209,11 +205,6 @@ export const projects: Project[] = [
     startDate: "30/04/2025",
     contractualEndDate: "30/12/2026"
   }
-];
-
-export const timelineEvents: TimelineEvent[] = [
-  { id: "seed-1", time: "07:00", title: "Inicio de jornada", description: "Revision de frente de obra y asignacion de cuadrillas.", source: "Sistema" },
-  { id: "seed-2", time: "17:00", title: "Cierre de jornada", description: "Validacion de compromisos y limpieza de areas intervenidas.", source: "Sistema" }
 ];
 
 export const budgetItems: BudgetItem[] = [
@@ -412,8 +403,7 @@ export const reportTypes: ReportType[] = [
   "Reporte de Compromisos",
   "Reporte Programado vs Ejecutado",
   "Reporte de Productividad",
-  "Reporte Documental",
-  "Bitacora General"
+  "Reporte Documental"
 ];
 
 export const reportItems: ProjectReport[] = [

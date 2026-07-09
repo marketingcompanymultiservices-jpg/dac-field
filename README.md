@@ -677,3 +677,13 @@ Confirmacion real del Registro Diario:
 - La fecha del formulario se maneja como fecha local `YYYY-MM-DD`, sin conversion UTC con `toISOString()`.
 - Los logs incluyen fecha seleccionada, fecha enviada, fecha retornada, id creado, cantidad recargada e id visible.
 
+## Sprint 5.7.6
+
+Eliminacion del modulo Bitacora:
+
+- El modulo Bitacora fue retirado de rutas, menu principal, Centro de Control, permisos semilla, diagnostico del sistema y tipos de reportes.
+- El Registro Diario es la fuente oficial de informacion operativa de DAC.
+- La consulta historica operativa se realiza desde `daily_reports`, `report_activities`, `report_photos` y `commitments`.
+- La tabla historica `events`, si existe en Supabase por esquemas iniciales, queda marcada como obsoleta y no debe usarse para nuevas consultas operativas.
+- No se eliminaron tablas automaticamente en Supabase.
+

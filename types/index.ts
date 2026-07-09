@@ -271,8 +271,7 @@ export type ReportType =
   | "Reporte de Compromisos"
   | "Reporte Programado vs Ejecutado"
   | "Reporte de Productividad"
-  | "Reporte Documental"
-  | "Bitacora General";
+  | "Reporte Documental";
 
 export type ReportStatus = "Generado" | "Borrador";
 
@@ -323,7 +322,6 @@ export type AdminPermissionAction = "Ver" | "Crear" | "Editar" | "Eliminar" | "E
 export type AdminPermissionModule =
   | "Dashboard"
   | "Registro Diario"
-  | "Bitacora"
   | "Avance"
   | "Presupuesto"
   | "Reportes"
