@@ -6,7 +6,6 @@ import type { ReactNode } from "react";
 import { AppBrand } from "@/components/AppBrand";
 import { useAuth } from "@/components/AuthProvider";
 import { getVersionLabel } from "@/lib/appConfig";
-import { getEnvironment } from "@/lib/environment";
 import { useProjectStore } from "@/lib/project-store";
 import type { AdminPermissionModule } from "@/types";
 
@@ -38,7 +37,6 @@ export function PageShell({
   const { logout, profile, user } = useAuth();
   const displayName = profile ? profile.firstName + " " + profile.lastName : user?.email ?? currentUser.firstName + " " + currentUser.lastName;
   const displayRole = profile?.role ?? currentUser.role;
-  const environment = getEnvironment();
   const roleConfig = adminRoles.find((role) => role.name === displayRole);
   const navigation: NavGroup[] = [
     {
@@ -144,7 +142,7 @@ export function PageShell({
           <Link href="/about" className="focus-ring rounded-md text-dac-primary hover:text-dac-secondary">
             {getVersionLabel()}
           </Link>
-          <span>Ambiente: {environment.environment}</span>
+          <span>Doble Altura Construcciones S.A.S.</span>
         </div>
       </footer>
     </main>
@@ -236,7 +234,7 @@ function StorageIndicator({
     ? "Sincronizando"
     : hasLocalData
       ? "Sincronizado"
-      : "Datos base";
+      : "Sin registros";
   const detail = lastSavedAt ? new Date(lastSavedAt).toLocaleTimeString("es-CO", { hour: "2-digit", minute: "2-digit" }) : "";
 
   return (

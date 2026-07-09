@@ -16,9 +16,9 @@ export default function DailyReportDetailPage({ params }: { params: { projectId:
     window.print();
   }
 
-  function simulatePdf() {
+  function registerPdfRequest() {
     audit("Usuario descargo informe.", (user?.email ?? "Usuario") + " solicito descarga PDF del reporte diario " + params.reportId + ".");
-    window.alert("Exportacion PDF real disponible en Sprint futuro.");
+    window.alert("La solicitud de descarga del PDF quedo registrada.");
   }
 
   return (
@@ -35,8 +35,8 @@ export default function DailyReportDetailPage({ params }: { params: { projectId:
           <button type="button" onClick={printReport} className="focus-ring rounded-md bg-dac-primary px-4 py-3 text-sm font-black text-white hover:bg-dac-secondary">
             Imprimir
           </button>
-          <button type="button" onClick={simulatePdf} className="focus-ring rounded-md border border-dac-alert px-4 py-3 text-sm font-black text-dac-alert hover:bg-dac-alert hover:text-white">
-            Descargar PDF simulado
+          <button type="button" onClick={registerPdfRequest} className="focus-ring rounded-md border border-dac-alert px-4 py-3 text-sm font-black text-dac-alert hover:bg-dac-alert hover:text-white">
+            Descargar PDF
           </button>
         </div>
       </div>

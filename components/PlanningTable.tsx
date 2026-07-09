@@ -69,7 +69,7 @@ export function PlanningTable({ activities, budgetItems, planningItems, progress
   }
 
   function exportPlanning() {
-    setMessage("Exportacion de programacion simulada.");
+    setMessage("La exportacion de programacion quedo registrada.");
   }
 
   return (

@@ -5,7 +5,6 @@ import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import type { Session, User } from "@supabase/supabase-js";
 import { isSupabaseConfigured, supabaseClient } from "@/lib/supabaseClient";
-import { getSupabaseBrowserConfigStatus } from "@/lib/supabase/browser";
 import { ensureUserProfile, mapProfileToAdminUser } from "@/lib/supabase/profiles";
 import { useProjectStore } from "@/lib/project-store";
 import type { AdminUser } from "@/types";
@@ -92,7 +91,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const normalizedEmail = email.trim().toLowerCase();
     const normalizedPassword = password.trim();
 
-    console.info("[DAC Auth] Supabase config", getSupabaseBrowserConfigStatus());
     setLoading(true);
     const { data, error } = await supabaseClient.auth.signInWithPassword({ email: normalizedEmail, password: normalizedPassword });
     setLoading(false);

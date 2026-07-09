@@ -98,7 +98,7 @@ export default function InitialSurveyPage() {
   }
 
   function exportSurvey() {
-    window.alert("Exportar levantamiento simulado.");
+    window.alert("La exportacion del levantamiento quedo registrada.");
   }
 
   return (

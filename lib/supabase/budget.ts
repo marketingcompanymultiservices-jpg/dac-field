@@ -58,13 +58,6 @@ export async function loadProjectBudgetFromSupabase(projectId: string) {
   }
 
   const items = ((itemRows ?? []) as BudgetItemRow[]).map(mapBudgetItemRow);
-  const totalBudgetValue = items.reduce((sum, item) => sum + item.totalValue, 0);
-
-  console.info("[DAC Budget] Presupuesto leido desde Supabase", {
-    projectId,
-    activitiesRead: items.length,
-    totalBudgetValueFromItems: totalBudgetValue
-  });
 
   return {
     items,
@@ -78,23 +71,9 @@ export async function replaceProjectBudgetInSupabase(projectId: string, items: B
   const diagnostics = await getSupabaseBudgetDiagnostics();
   const rows = items.map((item) => toBudgetItemRow(projectId, item));
 
-  console.info("[DAC Budget] Reemplazando presupuesto maestro en Supabase", {
-    projectId,
-    activitiesToInsert: items.length,
-    versionTotalBudgetValue: version.totalBudgetValue,
-    fileName: version.fileName,
-    authenticatedUser: diagnostics.user,
-    currentProfileRole: diagnostics.role,
-    firstBudgetItemPayload: rows[0] ?? null
-  });
-
   const versionPayload = toBudgetVersionRow(projectId, version);
-  console.info("[DAC Budget] Intentando guardar project_budget_versions", {
-    projectId,
-    payload: versionPayload
-  });
 
-  const { data: versionData, error: versionError } = await supabaseClient
+  const { error: versionError } = await supabaseClient
     .from("project_budget_versions")
     .upsert(versionPayload, { onConflict: "project_id" })
     .select("*")
@@ -108,12 +87,6 @@ export async function replaceProjectBudgetInSupabase(projectId: string, items: B
       currentProfileRole: diagnostics.role
     });
   }
-
-  console.info("[DAC Budget] Resultado project_budget_versions", {
-    projectId,
-    data: versionData,
-    error: null
-  });
 
   const { error: deleteError } = await supabaseClient
     .from("project_budget_items")
@@ -131,13 +104,6 @@ export async function replaceProjectBudgetInSupabase(projectId: string, items: B
   let insertedCount = 0;
   if (rows.length > 0) {
     for (const chunk of chunkRows(rows, 500)) {
-      console.info("[DAC Budget] Intentando insertar project_budget_items", {
-        projectId,
-        chunkSize: chunk.length,
-        insertedBeforeChunk: insertedCount,
-        firstChunkItemPayload: chunk[0] ?? null
-      });
-
       const { data, error: insertError } = await supabaseClient
         .from("project_budget_items")
         .insert(chunk)
@@ -156,32 +122,10 @@ export async function replaceProjectBudgetInSupabase(projectId: string, items: B
       }
 
       insertedCount += data?.length ?? chunk.length;
-
-      console.info("[DAC Budget] Resultado project_budget_items", {
-        projectId,
-        chunkSize: chunk.length,
-        insertedInChunk: data?.length ?? chunk.length,
-        insertedCount,
-        error: null
-      });
     }
   }
 
-  console.info("[DAC Budget] Actividades insertadas en Supabase", {
-    projectId,
-    insertedCount
-  });
-
   const remoteBudget = await loadProjectBudgetFromSupabase(projectId);
-  const totalBudgetValue = remoteBudget.items.reduce((sum, item) => sum + item.totalValue, 0);
-
-  console.info("[DAC Budget] Presupuesto importado y recargado desde Supabase", {
-    projectId,
-    activitiesInserted: insertedCount,
-    activitiesRead: remoteBudget.items.length,
-    totalBudgetValueFromItems: totalBudgetValue,
-    versionTotalBudgetValue: remoteBudget.version?.totalBudgetValue ?? 0
-  });
 
   return remoteBudget;
 }
@@ -294,16 +238,6 @@ async function getSupabaseBudgetDiagnostics() {
   if (roleError) {
     console.error("[DAC Budget] Error consultando current_profile_role()", formatSupabaseError(roleError));
   }
-
-  console.info("[DAC Budget] Diagnostico autenticacion/RLS", {
-    authenticatedUser: userData.user
-      ? {
-          id: userData.user.id,
-          email: userData.user.email
-        }
-      : null,
-    currentProfileRole: typeof roleData === "string" ? roleData : null
-  });
 
   return {
     user: userData.user

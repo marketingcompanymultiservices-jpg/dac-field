@@ -6,12 +6,12 @@ import {
   adminCompany as initialAdminCompany,
   adminRoles as initialAdminRoles,
   adminUsers as initialAdminUsers,
-  budgetItems as initialBudgetItems,
+  currentUserFallback,
   documentItems,
   permissionActions,
   permissionModules,
   projects
-} from "@/lib/mock-data";
+} from "@/lib/production-data";
 import { buildProgressFromActivities, calculateProgressSummary } from "@/lib/progress";
 import { addDaysISO, getWeekStartISO } from "@/lib/planning";
 import { clearImages, getImage } from "@/lib/imageStorage";
@@ -116,7 +116,7 @@ type ProjectStoreValue = {
   updateDirectionInspection: (id: string, update: Partial<DirectionInspection>, user: string, action: string, detail: string) => void;
   updateDirectionInspectionStatus: (id: string, status: DirectionInspectionStatus, user: string, detail?: string) => void;
   addSystemEvent: (event: Omit<TimelineEvent, "id" | "time" | "source"> & { time?: string }) => void;
-  resetDemoData: (requesterRole?: string) => void;
+  clearProductionSessionData: (requesterRole?: string) => void;
 };
 
 const ProjectStoreContext = createContext<ProjectStoreValue | null>(null);
@@ -264,13 +264,6 @@ export function ProjectStoreProvider({ children }: { children: ReactNode }) {
   async function saveReport(report: Omit<DailyReportEntry, "id" | "projectId" | "status">, status: DailyReportEntry["status"]) {
     const projectIdForDailyReports = normalizeProjectId(project.id);
     const reportId = "daily-report-" + Date.now();
-    console.info("[DAC DailyReports] Preparando guardado de Registro Diario", {
-      function: "saveReport",
-      selectedReportDate: report.date,
-      sentReportDate: report.date,
-      projectId: projectIdForDailyReports,
-      reportId
-    });
     const nextReport: DailyReportEntry = {
       ...report,
       id: reportId,
@@ -303,18 +296,6 @@ export function ProjectStoreProvider({ children }: { children: ReactNode }) {
     const remoteBundle = await loadDailyReportBundleFromSupabase(projectIdForDailyReports);
     const createdReport = remoteBundle.dailyReports.find((item) => item.id === reportId);
     const visibleReports = prioritizeReport(remoteBundle.dailyReports, reportId);
-    const latestVisibleReport = visibleReports[0] ?? null;
-
-    console.info("[DAC DailyReports] Confirmacion posterior al guardado", {
-      function: "saveReport",
-      selectedReportDate: report.date,
-      sentReportDate: nextReport.date,
-      returnedReportDate: createdReport?.date ?? null,
-      createdReportId: reportId,
-      reloadedReportsCount: remoteBundle.dailyReports.length,
-      latestVisibleReportId: latestVisibleReport?.id ?? null,
-      latestVisibleReportDate: latestVisibleReport?.date ?? null
-    });
 
     if (!createdReport) {
       throw new Error("El reporte fue enviado, pero no pudo confirmarse su lectura desde Supabase.");
@@ -442,12 +423,6 @@ export function ProjectStoreProvider({ children }: { children: ReactNode }) {
     async function loadRemoteDailyReports() {
       try {
         const projectIdForDailyReports = normalizeProjectId(projectBase.id);
-        console.info("[DAC DailyReports] Store solicitando carga remota", {
-          origin: "Supabase",
-          function: "loadRemoteDailyReports",
-          projectBaseId: projectBase.id,
-          normalizedProjectId: projectIdForDailyReports
-        });
         const remoteBundle = await loadDailyReportBundleFromSupabase(projectIdForDailyReports);
         if (!active) return;
 
@@ -520,11 +495,11 @@ export function ProjectStoreProvider({ children }: { children: ReactNode }) {
     setLastSavedAt(savedAt);
   }, [activities, adminCompany, adminRoles, adminUsers, alertOverrides, budgetItems, budgetQuantityChanges, budgetVersion, commitments, dailyReports, directionInspections, documents, initialSurvey, isHydrated, knownAlertIds, manualProgressChanges, photos, planningItems, progressItems, project, reports, shouldPersist, systemEvents, timeline]);
 
-  function resetDemoData(requesterRole?: string) {
+  function clearProductionSessionData(requesterRole?: string) {
     if (requesterRole !== "Administrador") {
-      console.warn("[DAC Security] Intento no autorizado de reiniciar datos de prueba", {
+      console.error("[DAC Security] Accion administrativa no autorizada", {
         file: "lib/project-store.tsx",
-        function: "resetDemoData",
+        function: "clearProductionSessionData",
         role: requesterRole ?? "sin rol"
       });
       return;
@@ -584,7 +559,7 @@ export function ProjectStoreProvider({ children }: { children: ReactNode }) {
     adminCompany,
     adminUsers,
     adminRoles,
-    currentUser: adminUsers.find((user) => user.email === "jose@doblealtura.com") ?? initialAdminUsers[0],
+    currentUser: adminUsers[0] ?? currentUserFallback,
     addDailyActivity(activity) {
       setShouldPersist(true);
       const quantity = Number(activity.quantity || 0);
@@ -696,13 +671,6 @@ export function ProjectStoreProvider({ children }: { children: ReactNode }) {
       try {
         const resetItems = items.map((item) => ({ ...item, executedQuantity: 0 }));
         const remoteBudget = await replaceProjectBudgetInSupabase(project.id, resetItems, version);
-        const remoteTotalBudgetValue = remoteBudget.items.reduce((sum, item) => sum + item.totalValue, 0);
-
-        console.info("[DAC Budget] Store actualizado desde Supabase despues de importar", {
-          projectId: project.id,
-          activitiesRead: remoteBudget.items.length,
-          totalBudgetValueFromItems: remoteTotalBudgetValue
-        });
 
         setBudgetItems(remoteBudget.items);
         setBudgetVersion(remoteBudget.version);
@@ -1052,7 +1020,7 @@ export function ProjectStoreProvider({ children }: { children: ReactNode }) {
         ...current
       ]);
     },
-    resetDemoData
+    clearProductionSessionData
   };
 
   return <ProjectStoreContext.Provider value={value}>{children}</ProjectStoreContext.Provider>;
@@ -1090,10 +1058,6 @@ function getImageWithTimeout(id: string) {
     getImage(id),
     new Promise<string>((resolve) => {
       globalThis.setTimeout(() => {
-        console.warn("[DAC DailyReports] Timeout leyendo fotografia desde IndexedDB; se guardara metadato sin image_data", {
-          photoId: id,
-          timeoutMs: IMAGE_READ_TIMEOUT_MS
-        });
         resolve("");
       }, IMAGE_READ_TIMEOUT_MS);
     })

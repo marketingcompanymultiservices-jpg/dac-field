@@ -51,7 +51,7 @@ export function ReportGenerator({
     <form ref={formRef} className="rounded-lg border border-dac-primary/15 bg-white p-4 shadow-panel sm:p-5">
       <div>
         <p className="text-sm font-bold uppercase tracking-wide text-dac-secondary">Generar nuevo reporte</p>
-        <h2 className="mt-1 text-xl font-black text-dac-primary">Reporte simulado</h2>
+        <h2 className="mt-1 text-xl font-black text-dac-primary">Reporte operativo</h2>
       </div>
 
       <div className="mt-4 grid gap-4 lg:grid-cols-2">

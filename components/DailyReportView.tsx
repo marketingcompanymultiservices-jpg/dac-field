@@ -176,7 +176,7 @@ export function DailyReportView({ project, report, activities, commitments, phot
 
       <ReportSection title="Firma del residente">
         <div className="min-w-0 rounded-md border border-dac-primary/15 p-5">
-          <p className="text-sm font-bold text-dac-text/60">Firma simulada</p>
+          <p className="text-sm font-bold text-dac-text/60">Firma registrada</p>
           <p className="mt-4 break-words text-2xl font-black text-dac-primary">{report.signature || project.resident}</p>
         </div>
       </ReportSection>

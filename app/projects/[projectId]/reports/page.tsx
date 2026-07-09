@@ -3,7 +3,7 @@
 import { HeaderMetric, ModuleHeader } from "@/components/ModuleHeader";
 import { PageShell } from "@/components/PageShell";
 import { ReportsBoard } from "@/components/ReportsBoard";
-import { reportTypes } from "@/lib/mock-data";
+import { reportTypes } from "@/lib/production-data";
 import { useProjectStore } from "@/lib/project-store";
 
 export default function ReportsPage() {

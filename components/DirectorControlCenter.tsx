@@ -5,7 +5,6 @@ import type { ReactNode } from "react";
 import { ModuleHeader } from "@/components/ModuleHeader";
 import { PageShell } from "@/components/PageShell";
 import { useAuth } from "@/components/AuthProvider";
-import { isProductionEnvironment } from "@/lib/environment";
 import { buildProgrammedRows, calculateProgrammedSummary } from "@/lib/programmed-progress";
 import { getTodayISO, getWeekStartISO } from "@/lib/planning";
 import { buildActivityProductivity, calculateProductivitySummary } from "@/lib/productivity";
@@ -32,7 +31,6 @@ export function DirectorControlCenter() {
     commitments,
     currentUser,
     dailyReports,
-    hasLocalData,
     isHydrated,
     lastSavedAt,
     photos,
@@ -40,14 +38,11 @@ export function DirectorControlCenter() {
     progressItems,
     progressSummary,
     project,
-    projects,
-    resetDemoData
+    projects
   } = useProjectStore();
   const today = getTodayISO();
-  const isProduction = isProductionEnvironment();
   const dashboardUser = profile ?? currentUser;
   const roleName = profile?.role ?? currentUser.role;
-  const canResetDemoData = roleName === "Administrador";
   const roleConfig = adminRoles.find((role) => role.name === roleName);
   const weekStart = getWeekStartISO(today);
   const todayActivities = activities.filter((activity) => activity.date === today);
@@ -80,20 +75,6 @@ export function DirectorControlCenter() {
   ];
   const quickActions = quickActionItems.filter((action) => canView(action.permission, roleConfig, roleName));
 
-  function handleReset() {
-    if (!canResetDemoData) {
-      console.warn("[DAC Security] Rol no autorizado para reiniciar datos de prueba", {
-        file: "components/DirectorControlCenter.tsx",
-        function: "handleReset",
-        role: roleName
-      });
-      return;
-    }
-    const confirmed = window.confirm("Esto borrara los datos guardados localmente y restaurara los datos de prueba. Deseas continuar?");
-    if (!confirmed) return;
-    resetDemoData(roleName);
-  }
-
   return (
     <PageShell activeItem="Dashboard">
       <ModuleHeader
@@ -110,11 +91,6 @@ export function DirectorControlCenter() {
               <p className="text-sm font-black uppercase text-dac-secondary">¿Qué desea hacer?</p>
               <h2 className="mt-1 text-xl font-black text-dac-primary">Acciones principales</h2>
             </div>
-            {!isProduction && canResetDemoData && (
-              <button type="button" onClick={handleReset} className="focus-ring rounded-md border border-dac-alert px-3 py-2 text-sm font-bold text-dac-alert hover:bg-dac-alert hover:text-white">
-                Reiniciar datos de prueba
-              </button>
-            )}
           </div>
           <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
             {quickActions.map((action) => (
@@ -143,7 +119,7 @@ export function DirectorControlCenter() {
             <Metric label="Valor ejecutado" value={currencyFormatter.format(progressSummary.executedValue)} tone="secondary" />
             <Metric label="Valor pendiente" value={currencyFormatter.format(progressSummary.pendingValue)} tone="muted" />
             <Metric label="Proyecto activo" value={projects.length + " / " + projects.length} tone="primary" />
-            <Metric label="Ultima sincronizacion" value={formatSavedAt(lastSavedAt, isHydrated, hasLocalData)} tone="muted" />
+            <Metric label="Ultima sincronizacion" value={formatSavedAt(lastSavedAt, isHydrated)} tone="muted" />
           </div>
         </Panel>
 
@@ -345,10 +321,9 @@ function ProjectStatus({ status }: { status: string }) {
   return <span className={"inline-flex rounded-full px-3 py-1.5 text-sm font-black " + className}>{status}</span>;
 }
 
-function formatSavedAt(lastSavedAt: string | null, isHydrated: boolean, hasLocalData: boolean) {
+function formatSavedAt(lastSavedAt: string | null, isHydrated: boolean) {
   if (!isHydrated) return "Cargando";
-  if (!hasLocalData) return "Datos de prueba";
-  if (!lastSavedAt) return "Local";
+  if (!lastSavedAt) return "Sin registros";
   return new Date(lastSavedAt).toLocaleString("es-CO", { month: "short", day: "2-digit", hour: "2-digit", minute: "2-digit" });
 }
 

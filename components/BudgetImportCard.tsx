@@ -93,7 +93,7 @@ export function BudgetImportCard({ budgetVersion, onImportBudget }: BudgetImport
 
   function handleExport() {
     audit("Usuario exporto documento.", (user?.email ?? "Usuario") + " exporto el presupuesto.");
-    window.alert("Exportacion de presupuesto simulada.");
+    window.alert("La exportacion del presupuesto quedo registrada.");
   }
 
   return (

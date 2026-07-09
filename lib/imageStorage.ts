@@ -157,7 +157,7 @@ async function hydratePhotos(photos: DailyPhoto[]) {
 function openImageDb() {
   return new Promise<IDBDatabase>((resolve, reject) => {
     if (typeof indexedDB === "undefined") {
-      reject(new Error("IndexedDB no esta disponible en este navegador."));
+      reject(new Error("El almacenamiento de imagenes no esta disponible en este navegador."));
       return;
     }
 
@@ -167,7 +167,7 @@ function openImageDb() {
       if (!db.objectStoreNames.contains(STORE_NAME)) db.createObjectStore(STORE_NAME, { keyPath: "id" });
     };
     request.onsuccess = () => resolve(request.result);
-    request.onerror = () => reject(request.error ?? new Error("No fue posible abrir IndexedDB."));
+    request.onerror = () => reject(request.error ?? new Error("No fue posible abrir el almacenamiento de imagenes."));
   });
 }
 

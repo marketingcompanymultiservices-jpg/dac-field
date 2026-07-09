@@ -100,7 +100,7 @@ export function SystemHealthPanel() {
         eyebrow="QA integral"
         title="Estado del Sistema"
         meta={"Estado general: " + visibleResult.status}
-        description="Diagnostico local de datos, navegacion, almacenamiento e integridad de modulos."
+        description="Diagnostico de datos, navegacion, persistencia e integridad de modulos."
       />
 
       <section className="mt-5 rounded-lg border border-dac-primary/15 bg-white p-4 shadow-panel sm:p-5">
@@ -129,8 +129,7 @@ export function SystemHealthPanel() {
           <Info label="Sistema operativo" value={getPlatform()} />
           <Info label="Version DAC" value={environment.version || dacVersion} />
           <Info label="Fecha compilacion" value={appConfig.buildDate} />
-          <Info label="Ultima actualizacion" value={store.lastSavedAt ? formatDate(store.lastSavedAt) : "Sin guardado local"} />
-          <Info label="Ambiente" value={environment.environment} />
+          <Info label="Ultima actualizacion" value={store.lastSavedAt ? formatDate(store.lastSavedAt) : "Sin registros"} />
           <Info label="Estado general" value={visibleResult.status} tone={visibleResult.status === "Requiere atencion" ? "bad" : "ok"} />
         </Panel>
 
@@ -184,9 +183,9 @@ export function SystemHealthPanel() {
 
 function buildDeploymentCapabilities(store: ReturnType<typeof useProjectStore>) {
   return [
-    { label: "localStorage", ok: typeof window !== "undefined" && !!window.localStorage, detail: getLocalStorageUsage() },
-    { label: "IndexedDB", ok: typeof indexedDB !== "undefined", detail: typeof indexedDB !== "undefined" ? "Disponible para fotografias" : "No disponible" },
-    { label: "Store Global", ok: store.isHydrated, detail: store.isHydrated ? "Hidratado" : "Cargando" },
+    { label: "Persistencia del navegador", ok: typeof window !== "undefined" && !!window.localStorage, detail: getBrowserStorageUsage() },
+    { label: "Evidencia fotografica", ok: typeof indexedDB !== "undefined", detail: typeof indexedDB !== "undefined" ? "Disponible" : "No disponible" },
+    { label: "Estado interno", ok: store.isHydrated, detail: store.isHydrated ? "Activo" : "Cargando" },
     { label: "PDF", ok: true, detail: "Reportes PDF preparados" },
     { label: "Camara", ok: typeof navigator !== "undefined" && !!navigator.mediaDevices, detail: "Input movil y galeria disponibles" },
     { label: "Reportes", ok: Array.isArray(store.reports), detail: store.reports.length + " reportes" },
@@ -238,9 +237,9 @@ function buildDiagnostic(
   ];
 
   const defaultStorage = [
-    { label: "Store Global", value: store.isHydrated ? "Activo" : "Cargando", ok: store.isHydrated },
-    { label: "localStorage", value: getLocalStorageUsage(), ok: typeof window !== "undefined" && !!window.localStorage },
-    { label: "IndexedDB", value: typeof indexedDB !== "undefined" ? "Disponible" : "No disponible", ok: typeof indexedDB !== "undefined" }
+    { label: "Estado interno", value: store.isHydrated ? "Activo" : "Cargando", ok: store.isHydrated },
+    { label: "Persistencia del navegador", value: getBrowserStorageUsage(), ok: typeof window !== "undefined" && !!window.localStorage },
+    { label: "Evidencia fotografica", value: typeof indexedDB !== "undefined" ? "Disponible" : "No disponible", ok: typeof indexedDB !== "undefined" }
   ];
 
   const issues = data.reduce((sum, item) => sum + (item.severity === "bad" ? 2 : item.severity === "warn" ? 1 : 0), 0)
@@ -277,7 +276,7 @@ async function routeResponds(href: string) {
 }
 
 async function getStorageDiagnostics() {
-  const localUsage = getLocalStorageUsage();
+  const localUsage = getBrowserStorageUsage();
   const indexedDbAvailable = typeof indexedDB !== "undefined";
   let storageEstimate = "No disponible";
 
@@ -287,9 +286,9 @@ async function getStorageDiagnostics() {
   }
 
   return [
-    { label: "Store Global", value: "Activo en memoria", ok: true },
-    { label: "localStorage", value: localUsage, ok: typeof window !== "undefined" && !!window.localStorage },
-    { label: "IndexedDB", value: indexedDbAvailable ? "Disponible" : "No disponible", ok: indexedDbAvailable },
+    { label: "Estado interno", value: "Activo", ok: true },
+    { label: "Persistencia del navegador", value: localUsage, ok: typeof window !== "undefined" && !!window.localStorage },
+    { label: "Evidencia fotografica", value: indexedDbAvailable ? "Disponible" : "No disponible", ok: indexedDbAvailable },
     { label: "Uso navegador", value: storageEstimate, ok: true }
   ];
 }
@@ -343,7 +342,7 @@ function severity(value: number, warnThreshold = 0): "ok" | "warn" | "bad" {
   return value > warnThreshold ? "bad" : "warn";
 }
 
-function getLocalStorageUsage() {
+function getBrowserStorageUsage() {
   if (typeof window === "undefined" || !window.localStorage) return "No disponible";
   let bytes = 0;
   for (let index = 0; index < window.localStorage.length; index += 1) {

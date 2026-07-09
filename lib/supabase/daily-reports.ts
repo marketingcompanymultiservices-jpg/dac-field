@@ -100,15 +100,6 @@ export async function loadDailyReportBundleFromSupabase(projectId: string): Prom
 
   const { data: userData } = await supabaseClient.auth.getUser();
   const authenticatedUser = userData.user?.email ?? "sin usuario autenticado";
-  const currentProfileRole = await getCurrentProfileRole();
-
-  console.info("[DAC DailyReports] Consultando reportes diarios", {
-    origin: "Supabase",
-    projectId,
-    authenticatedUser,
-    currentProfileRole,
-    sql: "select * from daily_reports where project_id = :project_id order by updated_at desc, created_at desc"
-  });
 
   const [reportsResult, activitiesResult, photosResult, commitmentsResult] = await withTimeout(
     Promise.all([
@@ -130,27 +121,6 @@ export async function loadDailyReportBundleFromSupabase(projectId: string): Prom
   const activities = ((activitiesResult.data ?? []) as ReportActivityRow[]).map(mapReportActivityRow);
   const photos = ((photosResult.data ?? []) as ReportPhotoRow[]).map(mapReportPhotoRow);
   const commitments = ((commitmentsResult.data ?? []) as CommitmentRow[]).map(mapCommitmentRow);
-
-  console.info("[DAC DailyReports] Resultado consulta Supabase", {
-    origin: "Supabase",
-    projectId,
-    authenticatedUser,
-    currentProfileRole,
-    reportsFound: dailyReports.length,
-    activitiesFound: activities.length,
-    photosFound: photos.length,
-    commitmentsFound: commitments.length
-  });
-
-  if (dailyReports.length === 0) {
-    console.warn("[DAC DailyReports] No se encontraron reportes para este proyecto en Supabase.", {
-      origin: "Supabase",
-      projectId,
-      authenticatedUser,
-      currentProfileRole,
-      reportsFound: 0
-    });
-  }
 
   return { dailyReports, activities, photos, commitments };
 }
@@ -175,22 +145,6 @@ export async function saveDailyReportBundleToSupabase(input: {
     photos: sanitizedPhotos,
     commitments: input.commitments
   };
-
-  console.info("[DAC DailyReports] Guardando paquete transaccional en Supabase", {
-    origin: "Supabase",
-    projectId: input.projectId,
-    authenticatedUser,
-    currentProfileRole,
-    sql: "select public.save_daily_report_bundle(:payload)",
-    reportId: input.report.id,
-    selectedReportDate: input.report.date,
-    sentReportDate: input.report.date,
-    activitiesToSave: input.activities.length,
-    photosToSave: input.photos.length,
-    photosWithImageData: sanitizedPhotos.filter((photo) => Boolean(photo.imageData)).length,
-    largeImagesOmitted: input.photos.filter((photo) => (photo.imageData?.length ?? 0) > MAX_IMAGE_DATA_CHARACTERS).length,
-    commitmentsToSave: input.commitments.length
-  });
 
   const { data, error } = await withTimeout(
     supabaseClient.rpc("save_daily_report_bundle", { payload }),
@@ -220,16 +174,6 @@ export async function saveDailyReportBundleToSupabase(input: {
     });
   }
 
-  console.info("[DAC DailyReports] Reporte diario guardado en Supabase", {
-    origin: "Supabase",
-    projectId: input.projectId,
-    authenticatedUser,
-    currentProfileRole,
-    reportId: input.report.id,
-    sentReportDate: input.report.date,
-    result: data
-  });
-
   return data;
 }
 
@@ -251,14 +195,6 @@ async function getCurrentProfileRole() {
 function sanitizePhotosForSupabase(photos: DailyPhoto[]) {
   return photos.map((photo) => {
     if (!photo.imageData || photo.imageData.length <= MAX_IMAGE_DATA_CHARACTERS) return photo;
-
-    console.warn("[DAC DailyReports] image_data omitida para evitar bloqueo del guardado movil", {
-      origin: "Supabase",
-      photoId: photo.id,
-      name: photo.name,
-      imageDataCharacters: photo.imageData.length,
-      maxImageDataCharacters: MAX_IMAGE_DATA_CHARACTERS
-    });
 
     return {
       ...photo,

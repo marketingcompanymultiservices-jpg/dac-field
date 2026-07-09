@@ -96,12 +96,6 @@ export async function createDirectionInspectionInSupabase(inspection: DirectionI
   const payload = toInspectionRow(inspection);
   const diagnostics = await getDirectionInspectionDiagnostics();
   const missingFields = getMissingRequiredInspectionFields(payload);
-  console.info("[DAC DirectionInspections] Insert diagnostic", {
-    requiredFieldsOk: missingFields.length === 0,
-    missingFields,
-    payload,
-    diagnostics
-  });
 
   if (missingFields.length > 0) {
     throw new SupabaseDiagnosticError({
@@ -148,11 +142,6 @@ export async function updateDirectionInspectionInSupabase(
 
   const payload = toInspectionUpdateRow({ ...update, updatedBy: user, updatedAt: new Date().toISOString() });
   const diagnostics = await getDirectionInspectionDiagnostics();
-  console.info("[DAC DirectionInspections] Update diagnostic", {
-    id,
-    payload,
-    diagnostics
-  });
   const { data, error } = await supabaseClient
     .from("direction_inspections")
     .update(payload)
@@ -184,10 +173,6 @@ export async function addDirectionInspectionHistory(inspectionId: string, user: 
     detail
   };
   const diagnostics = await getDirectionInspectionDiagnostics();
-  console.info("[DAC DirectionInspections] History insert diagnostic", {
-    payload,
-    diagnostics
-  });
 
   const { data, error } = await supabaseClient
     .from("direction_inspection_history")

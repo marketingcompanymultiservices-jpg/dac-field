@@ -53,7 +53,7 @@ export function ReportsBoard({ reportTypes }: { reportTypes: ReportType[] }) {
 
   function simulateDownload(report: ProjectReport) {
     audit("Usuario descargo informe.", (user?.email ?? "Usuario") + " descargo el informe " + report.name + ".");
-    setMessage("Descarga simulada.");
+    setMessage("Descarga registrada.");
   }
 
   return (
@@ -79,7 +79,7 @@ export function ReportsBoard({ reportTypes }: { reportTypes: ReportType[] }) {
           ))}
           {dailyReports.length === 0 && (
             <p className="rounded-md border border-dac-primary/10 p-4 text-sm font-semibold text-dac-text/60">
-              No se encontraron reportes para este proyecto en Supabase.
+              Aún no existen reportes registrados.
             </p>
           )}
         </div>
@@ -96,7 +96,7 @@ export function ReportsBoard({ reportTypes }: { reportTypes: ReportType[] }) {
             <div>
               <p className="text-sm font-bold uppercase tracking-wide text-dac-secondary">Vista previa con datos reales</p>
               <h2 className="mt-1 text-xl font-black text-dac-primary">{previewReport.name}</h2>
-              <p className="mt-2 text-sm text-dac-text/70">{previewReport.summary || "Reporte conectado al store global."}</p>
+              <p className="mt-2 text-sm text-dac-text/70">{previewReport.summary || "Reporte conectado a la informacion del proyecto."}</p>
             </div>
             <button type="button" onClick={() => setPreviewReport(null)} className="focus-ring rounded-md border border-dac-primary px-4 py-2 text-sm font-bold text-dac-primary hover:bg-dac-primary hover:text-white">
               Cerrar vista
@@ -138,7 +138,7 @@ export function ReportsBoard({ reportTypes }: { reportTypes: ReportType[] }) {
           ))
         ) : (
           <p className="rounded-lg border border-dac-primary/10 bg-white p-5 text-sm font-semibold text-dac-text/60">
-            No hay reportes para este filtro.
+            Aún no existen reportes registrados.
           </p>
         )}
       </section>

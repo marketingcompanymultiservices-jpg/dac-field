@@ -158,10 +158,6 @@ export async function parseBudgetExcel(file: File): Promise<ParsedBudgetExcel> {
   if (totalBudgetValue === 0) warnings.push("El valor total detectado es 0.");
   if (duplicateItems.length > 0) {
     warnings.push("Se detectaron " + duplicateItems.length + " actividades con ITEM duplicado. Usa la resolucion automatica antes de importar.");
-    console.info("[DAC Budget] Items duplicados detectados en Excel", {
-      duplicateCount: duplicateItems.length,
-      duplicateItems
-    });
   }
 
   const canImportWithAutoResolution = activities.length > 0 && totalBudgetValue > 0 && missingColumns.length === 0;

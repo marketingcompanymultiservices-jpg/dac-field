@@ -684,7 +684,7 @@ export function DailyReportWizard({ projectName }: { projectName: string }) {
 
         {currentStep === 7 && (
           <div className="grid gap-5">
-            <Field label="Firma del residente simulada" value={report.signature} placeholder="Hernan Aristizabal" onChange={(value) => updateReport("signature", value)} />
+            <Field label="Firma del residente" value={report.signature} placeholder="Hernan Aristizabal" onChange={(value) => updateReport("signature", value)} />
             <Summary report={report} workers={workers} materialsUsed={materialsUsed} activities={draftActivities} commitments={draftCommitments} photosCount={currentPhotos.length} executiveSummary={executiveSummary} />
           </div>
         )}

@@ -4,7 +4,7 @@ import Link from "next/link";
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { AppLogo } from "@/components/AppLogo";
 import { useAuth } from "@/components/AuthProvider";
-import { permissionActions, permissionModules } from "@/lib/mock-data";
+import { permissionActions, permissionModules } from "@/lib/production-data";
 import { useProjectStore } from "@/lib/project-store";
 import type { AdminCompany, AdminRole, AdminUser } from "@/types";
 
@@ -43,7 +43,7 @@ export function AdminPanel() {
           </div>
           <div className="rounded-lg border border-dac-primary/10 bg-dac-primary/[0.03] p-4">
             <p className="text-xs font-black uppercase text-dac-text/50">Estado</p>
-            <p className="mt-1 text-sm font-black text-dac-primary">LocalStorage / Store Global</p>
+            <p className="mt-1 text-sm font-black text-dac-primary">Configuración operativa</p>
             <p className="mt-1 text-xs font-semibold text-dac-text/60">Sin autenticacion real todavia</p>
             <Link href="/system/health" className="focus-ring mt-3 inline-flex rounded-md bg-dac-primary px-4 py-2 text-xs font-black text-white hover:bg-dac-secondary">
               Estado del Sistema

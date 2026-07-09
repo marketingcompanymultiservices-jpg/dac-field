@@ -59,13 +59,6 @@ export async function uploadProjectDocumentToSupabase(input: UploadProjectDocume
     Date.now() + "-" + safeFileName
   ].join("/");
 
-  console.info("[DAC Documents] Subiendo documento a Supabase Storage", {
-    bucket: DOCUMENTS_BUCKET,
-    storagePath,
-    projectId: input.projectId,
-    uploadedBy: input.uploadedByEmail ?? input.uploadedBy
-  });
-
   const { error: uploadError } = await supabaseClient.storage
     .from(DOCUMENTS_BUCKET)
     .upload(storagePath, input.file, {

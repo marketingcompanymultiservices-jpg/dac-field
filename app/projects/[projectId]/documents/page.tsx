@@ -3,7 +3,7 @@
 import { DocumentsBoard } from "@/components/DocumentsBoard";
 import { HeaderMetric, ModuleHeader } from "@/components/ModuleHeader";
 import { PageShell } from "@/components/PageShell";
-import { documentFolders } from "@/lib/mock-data";
+import { documentFolders } from "@/lib/production-data";
 import { useProjectStore } from "@/lib/project-store";
 
 export default function ProjectDocumentsPage() {
