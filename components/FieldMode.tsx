@@ -99,8 +99,13 @@ export function FieldMode() {
   useEffect(() => {
     let active = true;
     async function loadPreviews() {
-      const entries = await Promise.all(currentPhotos.map(async (photo) => [photo.id, photo.imageData || (await getImage(photo.id))] as const));
-      if (active) setPhotoPreviews(Object.fromEntries(entries.filter(([, dataUrl]) => Boolean(dataUrl))));
+      try {
+        const entries = await Promise.all(currentPhotos.map(async (photo) => [photo.id, photo.imageData || (await getImage(photo.id))] as const));
+        if (active) setPhotoPreviews(Object.fromEntries(entries.filter(([, dataUrl]) => Boolean(dataUrl))));
+      } catch (error) {
+        logFieldModeClientError(error, "loadPreviews");
+        if (active) setPhotoPreviews({});
+      }
     }
     loadPreviews();
     return () => {
@@ -236,6 +241,7 @@ export function FieldMode() {
       );
       setMessage("Registro Diario guardado en Supabase correctamente.");
     } catch (error) {
+      logFieldModeClientError(error, "sendReport");
       setMessage("No fue posible guardar el Registro Diario en Supabase. " + (error instanceof Error ? error.message : "code: DAC_UNKNOWN | message: Error desconocido | details: Sin detalles | hint: Revisa consola."));
     } finally {
       setIsSendingReport(false);
@@ -413,6 +419,16 @@ export function FieldMode() {
       </nav>
     </main>
   );
+}
+
+function logFieldModeClientError(error: unknown, functionName: string) {
+  console.error("[DAC FieldMode] Excepcion controlada en frontend", {
+    file: "components/FieldMode.tsx",
+    function: functionName,
+    line: "ver sourcemap/build",
+    message: error instanceof Error ? error.message : String(error),
+    stack: error instanceof Error ? error.stack : undefined
+  });
 }
 
 function ActionButton({ href, label, wide = false }: { href: string; label: string; wide?: boolean }) {

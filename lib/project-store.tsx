@@ -461,7 +461,7 @@ export function ProjectStoreProvider({ children }: { children: ReactNode }) {
       project,
       activities,
       dailyReports,
-      photos,
+      photos: photos.map(stripPhotoImageData),
       commitments,
       documents,
       budgetItems: [],
@@ -1019,6 +1019,12 @@ export function useProjectStore() {
   const context = useContext(ProjectStoreContext);
   if (!context) throw new Error("useProjectStore must be used inside ProjectStoreProvider");
   return context;
+}
+
+function stripPhotoImageData(photo: DailyPhoto): DailyPhoto {
+  if (!photo.imageData) return photo;
+  const { imageData: _imageData, ...metadata } = photo;
+  return metadata;
 }
 
 function getImageWithTimeout(id: string) {

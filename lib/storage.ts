@@ -52,7 +52,16 @@ export type PersistedAppState = {
 
 export function saveAppState(state: PersistedAppState) {
   if (typeof window === "undefined") return;
-  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  try {
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  } catch (error) {
+    console.error("[DAC Storage] No fue posible persistir estado local sin bloquear la pantalla", {
+      function: "saveAppState",
+      file: "lib/storage.ts",
+      message: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined
+    });
+  }
 }
 
 export function loadAppState(): PersistedAppState | null {

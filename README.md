@@ -634,3 +634,13 @@ Correccion de guardado infinito en Registro Diario:
 - Si guarda correctamente, DAC recarga los reportes desde Supabase por `project_id`.
 - Las fotografias con `image_data` demasiado grande no bloquean el guardado; se registra el metadato y se deja trazabilidad en consola.
 
+## Sprint 5.7.2
+
+Correccion de excepcion frontend posterior al guardado:
+
+- `localStorage` queda protegido para no generar pantalla blanca si supera cuota en celular.
+- DAC ya no persiste `image_data` en la copia local del Store.
+- La lectura de fotografias en Registro Diario, Modo Obra y Reporte Diario queda envuelta en `try/catch`.
+- Los errores controlados registran stack, archivo, funcion y mensaje original en consola.
+- Si ocurre una falla posterior al guardado, la interfaz mantiene un mensaje amigable y no queda en blanco.
+

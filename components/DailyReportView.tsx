@@ -31,9 +31,21 @@ export function DailyReportView({ project, report, activities, commitments, phot
     let active = true;
 
     async function loadImages() {
-      const byReport = await getImagesByDailyReportId(report.id, photos);
-      const entries = byReport.length > 0 ? byReport : await getImagesByDate(report.date, photos);
-      if (active) setHydratedPhotos(entries);
+      try {
+        const byReport = await getImagesByDailyReportId(report.id, photos);
+        const entries = byReport.length > 0 ? byReport : await getImagesByDate(report.date, photos);
+        if (active) setHydratedPhotos(entries);
+      } catch (error) {
+        console.error("[DAC DailyReportView] Excepcion controlada leyendo fotografias del reporte", {
+          file: "components/DailyReportView.tsx",
+          function: "loadImages",
+          line: "ver sourcemap/build",
+          reportId: report.id,
+          message: error instanceof Error ? error.message : String(error),
+          stack: error instanceof Error ? error.stack : undefined
+        });
+        if (active) setHydratedPhotos([]);
+      }
     }
 
     loadImages();
