@@ -216,6 +216,8 @@ export type DailyReportEntry = {
   status: "Borrador" | "Enviado";
   createdBy?: string;
   updatedBy?: string;
+  createdAt?: string;
+  updatedAt?: string;
 };
 
 export type CommitmentPriority = "Baja" | "Media" | "Alta" | "Critica";

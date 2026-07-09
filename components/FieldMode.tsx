@@ -5,7 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import { AppLogo } from "@/components/AppLogo";
 import { useAuth } from "@/components/AuthProvider";
 import { deleteImage, getImage, saveImage } from "@/lib/imageStorage";
-import { getPlanningExecution, getPlanningStatus, getTodayISO } from "@/lib/planning";
+import { getPlanningExecution, getPlanningStatus } from "@/lib/planning";
 import { useProjectStore } from "@/lib/project-store";
 import type { Commitment, CommitmentPriority } from "@/types";
 
@@ -25,7 +25,7 @@ type CompactReport = {
   observations: string;
 };
 
-const today = getTodayISO();
+const today = getLocalDateISO();
 const inputClass = "focus-ring mt-2 w-full rounded-md border border-dac-primary/20 bg-white px-4 py-4 text-base font-semibold text-dac-text outline-none";
 const labelClass = "block text-sm font-black text-dac-text";
 
@@ -471,6 +471,14 @@ function TextArea({ label, value, onChange, placeholder }: { label: string; valu
       <textarea rows={3} value={value} placeholder={placeholder} onChange={(event) => onChange(event.target.value)} className={inputClass + " resize-y"} />
     </label>
   );
+}
+
+function getLocalDateISO() {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, "0");
+  const day = String(now.getDate()).padStart(2, "0");
+  return year + "-" + month + "-" + day;
 }
 
 function SectionTitle({ eyebrow, title }: { eyebrow: string; title: string }) {

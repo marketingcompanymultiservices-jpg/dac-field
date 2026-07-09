@@ -19,6 +19,8 @@ type DailyReportRow = {
   status: DailyReportEntry["status"];
   created_by: string | null;
   updated_by: string | null;
+  created_at: string | null;
+  updated_at: string | null;
 };
 
 type ReportActivityRow = {
@@ -105,12 +107,12 @@ export async function loadDailyReportBundleFromSupabase(projectId: string): Prom
     projectId,
     authenticatedUser,
     currentProfileRole,
-    sql: "select * from daily_reports where project_id = :project_id order by report_date desc, report_time desc"
+    sql: "select * from daily_reports where project_id = :project_id order by updated_at desc, created_at desc"
   });
 
   const [reportsResult, activitiesResult, photosResult, commitmentsResult] = await withTimeout(
     Promise.all([
-      supabaseClient.from("daily_reports").select("*").eq("project_id", projectId).order("report_date", { ascending: false }).order("report_time", { ascending: false }),
+      supabaseClient.from("daily_reports").select("*").eq("project_id", projectId).order("updated_at", { ascending: false }).order("created_at", { ascending: false }),
       supabaseClient.from("report_activities").select("*").eq("project_id", projectId).order("activity_date", { ascending: false }).order("activity_time", { ascending: false }),
       supabaseClient.from("report_photos").select("*").eq("project_id", projectId).order("photo_date", { ascending: false }).order("photo_time", { ascending: false }),
       supabaseClient.from("commitments").select("*").eq("project_id", projectId).order("created_at", { ascending: false })
@@ -181,6 +183,8 @@ export async function saveDailyReportBundleToSupabase(input: {
     currentProfileRole,
     sql: "select public.save_daily_report_bundle(:payload)",
     reportId: input.report.id,
+    selectedReportDate: input.report.date,
+    sentReportDate: input.report.date,
     activitiesToSave: input.activities.length,
     photosToSave: input.photos.length,
     photosWithImageData: sanitizedPhotos.filter((photo) => Boolean(photo.imageData)).length,
@@ -221,6 +225,8 @@ export async function saveDailyReportBundleToSupabase(input: {
     projectId: input.projectId,
     authenticatedUser,
     currentProfileRole,
+    reportId: input.report.id,
+    sentReportDate: input.report.date,
     result: data
   });
 
@@ -304,7 +310,9 @@ function mapDailyReportRow(row: DailyReportRow): DailyReportEntry {
     signature: row.signature ?? "",
     status: row.status,
     createdBy: row.created_by ?? undefined,
-    updatedBy: row.updated_by ?? undefined
+    updatedBy: row.updated_by ?? undefined,
+    createdAt: row.created_at ?? undefined,
+    updatedAt: row.updated_at ?? undefined
   };
 }
 

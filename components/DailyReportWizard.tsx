@@ -155,7 +155,7 @@ export function DailyReportWizard({ projectName }: { projectName: string }) {
   }
 
   function getReportDate() {
-    return report.date || new Date().toISOString().slice(0, 10);
+    return report.date || getLocalDateISO();
   }
 
   function getReportTime() {
@@ -622,6 +622,14 @@ function getEmptyActivityDraft(): ActivityDraft {
     commitmentDueDate: "",
     commitmentPriority: "Media"
   };
+}
+
+function getLocalDateISO() {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, "0");
+  const day = String(now.getDate()).padStart(2, "0");
+  return year + "-" + month + "-" + day;
 }
 
 function ItemList({ items, empty }: { items: Array<{ title: string; meta: string; detail?: string }>; empty: string }) {

@@ -666,3 +666,14 @@ Reportes diarios visibles entre usuarios:
 - El modulo Reportes incluye una seccion explicita de reportes diarios leidos desde `daily_reports`.
 - No existen filtros por creador, residente, propietario o usuario actual para listar reportes diarios del proyecto.
 
+## Sprint 5.7.5
+
+Confirmacion real del Registro Diario:
+
+- DAC no muestra exito hasta confirmar que el reporte existe en Supabase despues de recargar `daily_reports`.
+- Si el reporte no aparece tras guardar, muestra `El reporte fue enviado, pero no pudo confirmarse su lectura desde Supabase.`
+- La carga remota se ordena por `updated_at DESC` y `created_at DESC`.
+- El reporte recien creado queda como primer reporte visible.
+- La fecha del formulario se maneja como fecha local `YYYY-MM-DD`, sin conversion UTC con `toISOString()`.
+- Los logs incluyen fecha seleccionada, fecha enviada, fecha retornada, id creado, cantidad recargada e id visible.
+

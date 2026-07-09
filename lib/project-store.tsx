@@ -264,6 +264,13 @@ export function ProjectStoreProvider({ children }: { children: ReactNode }) {
   async function saveReport(report: Omit<DailyReportEntry, "id" | "projectId" | "status">, status: DailyReportEntry["status"]) {
     const projectIdForDailyReports = normalizeProjectId(project.id);
     const reportId = "daily-report-" + Date.now();
+    console.info("[DAC DailyReports] Preparando guardado de Registro Diario", {
+      function: "saveReport",
+      selectedReportDate: report.date,
+      sentReportDate: report.date,
+      projectId: projectIdForDailyReports,
+      reportId
+    });
     const nextReport: DailyReportEntry = {
       ...report,
       id: reportId,
@@ -294,9 +301,27 @@ export function ProjectStoreProvider({ children }: { children: ReactNode }) {
     });
 
     const remoteBundle = await loadDailyReportBundleFromSupabase(projectIdForDailyReports);
+    const createdReport = remoteBundle.dailyReports.find((item) => item.id === reportId);
+    const visibleReports = prioritizeReport(remoteBundle.dailyReports, reportId);
+    const latestVisibleReport = visibleReports[0] ?? null;
+
+    console.info("[DAC DailyReports] Confirmacion posterior al guardado", {
+      function: "saveReport",
+      selectedReportDate: report.date,
+      sentReportDate: nextReport.date,
+      returnedReportDate: createdReport?.date ?? null,
+      createdReportId: reportId,
+      reloadedReportsCount: remoteBundle.dailyReports.length,
+      latestVisibleReportId: latestVisibleReport?.id ?? null,
+      latestVisibleReportDate: latestVisibleReport?.date ?? null
+    });
+
+    if (!createdReport) {
+      throw new Error("El reporte fue enviado, pero no pudo confirmarse su lectura desde Supabase.");
+    }
 
     setShouldPersist(true);
-    setDailyReports(remoteBundle.dailyReports);
+    setDailyReports(visibleReports);
     setActivities(remoteBundle.activities);
     setPhotos(remoteBundle.photos);
     setCommitments(remoteBundle.commitments);
@@ -1052,6 +1077,12 @@ function normalizeProject(project: Project): Project {
 
 function normalizeProjectId(projectId?: string) {
   return projects.some((item) => item.id === projectId) ? projectId! : ACTIVE_PROJECT_ID;
+}
+
+function prioritizeReport(reports: DailyReportEntry[], reportId: string) {
+  const report = reports.find((item) => item.id === reportId);
+  if (!report) return reports;
+  return [report, ...reports.filter((item) => item.id !== reportId)];
 }
 
 function getImageWithTimeout(id: string) {
