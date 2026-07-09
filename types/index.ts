@@ -160,6 +160,7 @@ export type ActivityPlanning = {
 export type DailyActivity = {
   id: string;
   projectId: string;
+  dailyReportId?: string;
   budgetItemId?: string;
   activity: string;
   unit: string;

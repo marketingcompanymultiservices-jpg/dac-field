@@ -60,8 +60,8 @@ export function FieldMode() {
 
   const currentUserName = profile ? (profile.firstName + " " + profile.lastName).trim() : user?.email ?? project.resident;
   const currentUserEmail = user?.email ?? currentUserName;
-  const currentPhotos = photos.filter((photo) => photo.date === today);
-  const todayActivities = activities.filter((activity) => activity.date === today);
+  const currentPhotos = photos.filter((photo) => photo.projectId === project.id && photo.date === today && !photo.dailyReportId && !photo.reportId);
+  const todayActivities = activities.filter((activity) => activity.projectId === project.id && activity.date === today && !activity.dailyReportId);
   const todayReport = dailyReports.find((entry) => entry.date === today);
   const progressByItem = useMemo(() => new Map(progressItems.map((item) => [item.item, item])), [progressItems]);
   const selectedBudgetItem = budgetItems.find((item) => item.item === activityDraft.budgetItemId);
@@ -239,7 +239,14 @@ export function FieldMode() {
         },
         "Enviado"
       );
-      setMessage("Registro Diario guardado en Supabase correctamente.");
+      setReport({ weather: "", personal: "", observations: "" });
+      setActivityDraft(getEmptyActivityDraft());
+      setActivitySearch("");
+      setCommitmentDescription("");
+      setCommitmentPriority("Media");
+      setPhotoPreviews({});
+      setPhotoMessage("");
+      setMessage("Registro Diario guardado correctamente.");
     } catch (error) {
       logFieldModeClientError(error, "sendReport");
       setMessage("No fue posible guardar el Registro Diario en Supabase. " + (error instanceof Error ? error.message : "code: DAC_UNKNOWN | message: Error desconocido | details: Sin detalles | hint: Revisa consola."));

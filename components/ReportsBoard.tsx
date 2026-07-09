@@ -79,7 +79,7 @@ export function ReportsBoard({ reportTypes }: { reportTypes: ReportType[] }) {
           <div className="mt-5 grid gap-4 lg:grid-cols-3">
             <PreviewList title="Actividades" items={activities.map((item) => item.activity + " - " + item.quantity + " " + item.unit)} empty="Sin actividades registradas." />
             <PreviewList title="Compromisos" items={commitments.map((item) => item.description + " - " + item.status)} empty="Sin compromisos registrados." />
-            <PreviewList title="Fotos por reporte" items={dailyReports.map((report) => report.date + " - " + photos.filter((photo) => photo.dailyReportId === report.id || photo.reportId === report.id || photo.date === report.date).length + " fotos")} empty="Sin fotografias registradas." />
+            <PreviewList title="Fotos por reporte" items={dailyReports.map((report) => report.date + " - " + photos.filter((photo) => photo.dailyReportId === report.id || photo.reportId === report.id).length + " fotos")} empty="Sin fotografias registradas." />
           </div>
           <dl className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             <Info label="Avance calculado" value={progressSummary.generalProgress.toFixed(1) + " %"} />

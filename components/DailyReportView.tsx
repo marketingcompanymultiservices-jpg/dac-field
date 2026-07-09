@@ -18,12 +18,12 @@ const numberFormatter = new Intl.NumberFormat("es-CO");
 
 export function DailyReportView({ project, report, activities, commitments, photos }: DailyReportViewProps) {
   const [hydratedPhotos, setHydratedPhotos] = useState<Array<{ photo: DailyPhoto; dataUrl: string }>>([]);
-  const reportActivities = activities.filter((activity) => activity.date === report.date);
+  const reportActivities = activities.filter((activity) => activity.dailyReportId === report.id || (!activity.dailyReportId && activity.date === report.date));
   const reportCommitments = commitments.filter((commitment) => {
     if (commitment.createdAt) return commitment.createdAt.slice(0, 10) === report.date;
     return commitment.dueDate === report.date || commitment.origin === "Registro Diario";
   });
-  const reportPhotos = photos.filter((photo) => photo.date === report.date);
+  const reportPhotos = photos.filter((photo) => photo.dailyReportId === report.id || photo.reportId === report.id || (!photo.dailyReportId && !photo.reportId && photo.date === report.date));
   const totalPhotos = reportPhotos.length;
   const summary = buildSummary(reportActivities, reportCommitments.length, totalPhotos);
 

@@ -7,13 +7,11 @@ import {
   adminRoles as initialAdminRoles,
   adminUsers as initialAdminUsers,
   budgetItems as initialBudgetItems,
-  commitmentItems,
   documentItems,
   permissionActions,
   permissionModules,
   projects,
-  reportItems,
-  timelineEvents
+  reportItems
 } from "@/lib/mock-data";
 import { buildProgressFromActivities, calculateProgressSummary } from "@/lib/progress";
 import { addDaysISO, getWeekStartISO } from "@/lib/planning";
@@ -119,7 +117,7 @@ type ProjectStoreValue = {
   updateDirectionInspection: (id: string, update: Partial<DirectionInspection>, user: string, action: string, detail: string) => void;
   updateDirectionInspectionStatus: (id: string, status: DirectionInspectionStatus, user: string, detail?: string) => void;
   addSystemEvent: (event: Omit<TimelineEvent, "id" | "time" | "source"> & { time?: string }) => void;
-  resetDemoData: () => void;
+  resetDemoData: (requesterRole?: string) => void;
 };
 
 const ProjectStoreContext = createContext<ProjectStoreValue | null>(null);
@@ -130,7 +128,7 @@ export function ProjectStoreProvider({ children }: { children: ReactNode }) {
   const [activities, setActivities] = useState<DailyActivity[]>([]);
   const [dailyReports, setDailyReports] = useState<DailyReportEntry[]>([]);
   const [photos, setPhotos] = useState<DailyPhoto[]>([]);
-  const [commitments, setCommitments] = useState<Commitment[]>(commitmentItems);
+  const [commitments, setCommitments] = useState<Commitment[]>([]);
   const [documents, setDocuments] = useState<ProjectDocument[]>(documentItems);
   const [budgetItems, setBudgetItems] = useState<BudgetItem[]>([]);
   const [budgetVersion, setBudgetVersion] = useState<BudgetVersion | null>(null);
@@ -200,7 +198,7 @@ export function ProjectStoreProvider({ children }: { children: ReactNode }) {
       source: "Fotografia"
     }));
 
-    return [...timelineEvents, ...systemEvents, ...activityEvents, ...commitmentEvents, ...photoEvents].sort((a, b) => a.time.localeCompare(b.time));
+    return [...systemEvents, ...activityEvents, ...commitmentEvents, ...photoEvents].sort((a, b) => a.time.localeCompare(b.time));
   }, [activities, commitments, photos, systemEvents]);
 
   const dashboardMetrics = useMemo<DashboardMetric[]>(() => {
@@ -271,13 +269,13 @@ export function ProjectStoreProvider({ children }: { children: ReactNode }) {
       projectId: project.id,
       status
     };
-    const reportActivities = activities.filter((activity) => activity.projectId === project.id && activity.date === report.date);
+    const reportActivities = activities.filter((activity) => activity.projectId === project.id && activity.date === report.date && !activity.dailyReportId);
     const reportCommitments = commitments
-      .filter((commitment) => commitment.projectId === project.id && commitment.origin === "Registro Diario")
+      .filter((commitment) => commitment.projectId === project.id && commitment.origin === "Registro Diario" && !commitment.dailyReportId)
       .map((commitment) => ({ ...commitment, dailyReportId: commitment.dailyReportId ?? reportId }));
     const reportPhotos = await Promise.all(
       photos
-        .filter((photo) => photo.projectId === project.id && photo.date === report.date)
+        .filter((photo) => photo.projectId === project.id && photo.date === report.date && !photo.dailyReportId && !photo.reportId)
         .map(async (photo) => ({
           ...photo,
           reportId,
@@ -300,7 +298,7 @@ export function ProjectStoreProvider({ children }: { children: ReactNode }) {
     setDailyReports(remoteBundle.dailyReports);
     setActivities(remoteBundle.activities);
     setPhotos(remoteBundle.photos);
-    setCommitments(remoteBundle.commitments.length > 0 ? remoteBundle.commitments : commitmentItems);
+    setCommitments(remoteBundle.commitments);
   }
 
   useEffect(() => {
@@ -308,10 +306,10 @@ export function ProjectStoreProvider({ children }: { children: ReactNode }) {
 
     if (storedState) {
       setProjectBase(storedState.project);
-      setActivities(storedState.activities);
-      setDailyReports(storedState.dailyReports);
-      setPhotos(storedState.photos);
-      setCommitments(storedState.commitments);
+      setActivities([]);
+      setDailyReports([]);
+      setPhotos([]);
+      setCommitments([]);
       setDocuments(storedState.documents);
       pendingLocalBudgetRef.current = {
         items: storedState.budgetItems ?? [],
@@ -423,10 +421,14 @@ export function ProjectStoreProvider({ children }: { children: ReactNode }) {
         setDailyReports(remoteBundle.dailyReports);
         setActivities(remoteBundle.activities);
         setPhotos(remoteBundle.photos);
-        setCommitments(remoteBundle.commitments.length > 0 ? remoteBundle.commitments : commitmentItems);
+        setCommitments(remoteBundle.commitments);
         setShouldPersist(true);
       } catch (error) {
         if (!active) return;
+        setDailyReports([]);
+        setActivities([]);
+        setPhotos([]);
+        setCommitments([]);
         console.error("[DAC DailyReports] No fue posible cargar reportes diarios desde Supabase", {
           origin: "Supabase",
           projectId: projectBase.id,
@@ -485,14 +487,22 @@ export function ProjectStoreProvider({ children }: { children: ReactNode }) {
     setLastSavedAt(savedAt);
   }, [activities, adminCompany, adminRoles, adminUsers, alertOverrides, budgetItems, budgetQuantityChanges, budgetVersion, commitments, dailyReports, directionInspections, documents, initialSurvey, isHydrated, knownAlertIds, manualProgressChanges, photos, planningItems, progressItems, project, reports, shouldPersist, systemEvents, timeline]);
 
-  function resetDemoData() {
+  function resetDemoData(requesterRole?: string) {
+    if (requesterRole !== "Administrador") {
+      console.warn("[DAC Security] Intento no autorizado de reiniciar datos de prueba", {
+        file: "lib/project-store.tsx",
+        function: "resetDemoData",
+        role: requesterRole ?? "sin rol"
+      });
+      return;
+    }
     clearAppState();
     clearImages().catch(() => undefined);
     setProjectBase(projects[0]);
     setActivities([]);
     setDailyReports([]);
     setPhotos([]);
-    setCommitments(commitmentItems);
+    setCommitments([]);
     setDocuments(documentItems);
     setBudgetItems([]);
     setBudgetVersion(null);

@@ -280,6 +280,7 @@ function mapReportActivityRow(row: ReportActivityRow): DailyActivity {
   return {
     id: row.id,
     projectId: row.project_id,
+    dailyReportId: row.daily_report_id,
     budgetItemId: row.budget_item_id ?? undefined,
     activity: row.activity,
     unit: row.unit ?? "",

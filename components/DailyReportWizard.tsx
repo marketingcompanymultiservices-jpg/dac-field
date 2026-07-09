@@ -110,9 +110,10 @@ export function DailyReportWizard({ projectName }: { projectName: string }) {
   const progress = useMemo(() => ((currentStep + 1) / steps.length) * 100, [currentStep]);
   const isFirstStep = currentStep === 0;
   const isLastStep = currentStep === steps.length - 1;
-  const dailyCommitments = commitments.filter((commitment) => commitment.origin === "Registro Diario");
   const reportDate = getReportDate();
-  const currentPhotos = useMemo(() => photos.filter((photo) => photo.date === reportDate), [photos, reportDate]);
+  const draftActivities = useMemo(() => activities.filter((activity) => activity.projectId === project.id && activity.date === reportDate && !activity.dailyReportId), [activities, project.id, reportDate]);
+  const draftCommitments = useMemo(() => commitments.filter((commitment) => commitment.projectId === project.id && commitment.origin === "Registro Diario" && !commitment.dailyReportId), [commitments, project.id]);
+  const currentPhotos = useMemo(() => photos.filter((photo) => photo.projectId === project.id && photo.date === reportDate && !photo.dailyReportId && !photo.reportId), [photos, project.id, reportDate]);
   const progressByItem = useMemo(() => new Map(progressItems.map((item) => [item.item, item])), [progressItems]);
   const selectedBudgetItem = budgetItems.find((item) => item.item === activityDraft.budgetItemId);
   const selectedProgressItem = selectedBudgetItem ? progressByItem.get(selectedBudgetItem.item) : undefined;
@@ -295,7 +296,14 @@ export function DailyReportWizard({ projectName }: { projectName: string }) {
         },
         status
       );
-      setMessage("Registro Diario guardado en Supabase correctamente.");
+      setReport(initialReport);
+      setActivityDraft(getEmptyActivityDraft());
+      setActivitySearch("");
+      setCommitmentDraft({ description: "", owner: "", dueDate: "", priority: "Media" });
+      setPhotoPreviews({});
+      setPhotoMessage("");
+      setCurrentStep(0);
+      setMessage("Registro Diario guardado correctamente.");
     } catch (error) {
       logDailyReportClientError(error, "persistReport");
       setMessage("No fue posible guardar el Registro Diario en Supabase. " + (error instanceof Error ? error.message : "code: DAC_UNKNOWN | message: Error desconocido | details: Sin detalles | hint: Revisa consola."));
@@ -434,7 +442,7 @@ export function DailyReportWizard({ projectName }: { projectName: string }) {
               </div>
               <button type="button" onClick={addActivity} className="focus-ring rounded-md bg-dac-primary px-5 py-3 font-bold text-white hover:bg-dac-secondary sm:col-span-2">Agregar actividad</button>
             </div>
-            <ItemList empty="Aun no hay actividades agregadas." items={activities.map((item) => ({ title: item.activity, meta: item.quantity + " " + item.unit + " - " + item.time, detail: [item.observation, item.workFront, item.owner].filter(Boolean).join(" - ") }))} />
+            <ItemList empty="Aun no hay actividades agregadas." items={draftActivities.map((item) => ({ title: item.activity, meta: item.quantity + " " + item.unit + " - " + item.time, detail: [item.observation, item.workFront, item.owner].filter(Boolean).join(" - ") }))} />
           </div>
         )}
 
@@ -463,7 +471,7 @@ export function DailyReportWizard({ projectName }: { projectName: string }) {
               </label>
               <button type="button" onClick={addCommitment} className="focus-ring rounded-md bg-dac-primary px-5 py-3 font-bold text-white hover:bg-dac-secondary sm:col-span-2">Agregar compromiso</button>
             </div>
-            <ItemList empty="Aun no hay compromisos agregados desde Registro Diario." items={dailyCommitments.map((item) => ({ title: item.description, meta: (item.owner || "Sin responsable") + " - " + item.priority + " - " + item.status, detail: item.dueDate ? "Fecha limite: " + item.dueDate : "Sin fecha limite" }))} />
+            <ItemList empty="Aun no hay compromisos agregados desde Registro Diario." items={draftCommitments.map((item) => ({ title: item.description, meta: (item.owner || "Sin responsable") + " - " + item.priority + " - " + item.status, detail: item.dueDate ? "Fecha limite: " + item.dueDate : "Sin fecha limite" }))} />
           </div>
         )}
 
@@ -527,7 +535,7 @@ export function DailyReportWizard({ projectName }: { projectName: string }) {
         {currentStep === 7 && (
           <div className="grid gap-5">
             <Field label="Firma del residente simulada" value={report.signature} placeholder="Hernan Aristizabal" onChange={(value) => updateReport("signature", value)} />
-            <Summary report={report} activities={activities} commitments={dailyCommitments} photosCount={currentPhotos.length} executiveSummary={executiveSummary} />
+            <Summary report={report} activities={draftActivities} commitments={draftCommitments} photosCount={currentPhotos.length} executiveSummary={executiveSummary} />
           </div>
         )}
       </div>

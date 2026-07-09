@@ -108,7 +108,7 @@ export function buildSmartAlerts({
     });
 
   dailyReports.forEach((report) => {
-    const reportPhotos = photos.filter((photo) => photo.dailyReportId === report.id || photo.reportId === report.id || photo.date === report.date);
+    const reportPhotos = photos.filter((photo) => photo.dailyReportId === report.id || photo.reportId === report.id);
     if (reportPhotos.length < 5) {
       alerts.push(withStatus({
         id: "daily-report-photos-" + report.id,

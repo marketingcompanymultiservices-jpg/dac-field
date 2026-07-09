@@ -47,6 +47,7 @@ export function DirectorControlCenter() {
   const isProduction = isProductionEnvironment();
   const dashboardUser = profile ?? currentUser;
   const roleName = profile?.role ?? currentUser.role;
+  const canResetDemoData = roleName === "Administrador";
   const roleConfig = adminRoles.find((role) => role.name === roleName);
   const weekStart = getWeekStartISO(today);
   const todayActivities = activities.filter((activity) => activity.date === today);
@@ -80,9 +81,17 @@ export function DirectorControlCenter() {
   const quickActions = quickActionItems.filter((action) => canView(action.permission, roleConfig, roleName));
 
   function handleReset() {
+    if (!canResetDemoData) {
+      console.warn("[DAC Security] Rol no autorizado para reiniciar datos de prueba", {
+        file: "components/DirectorControlCenter.tsx",
+        function: "handleReset",
+        role: roleName
+      });
+      return;
+    }
     const confirmed = window.confirm("Esto borrara los datos guardados localmente y restaurara los datos de prueba. Deseas continuar?");
     if (!confirmed) return;
-    resetDemoData();
+    resetDemoData(roleName);
   }
 
   return (
@@ -101,7 +110,7 @@ export function DirectorControlCenter() {
               <p className="text-sm font-black uppercase text-dac-secondary">¿Qué desea hacer?</p>
               <h2 className="mt-1 text-xl font-black text-dac-primary">Acciones principales</h2>
             </div>
-            {!isProduction && (
+            {!isProduction && canResetDemoData && (
               <button type="button" onClick={handleReset} className="focus-ring rounded-md border border-dac-alert px-3 py-2 text-sm font-bold text-dac-alert hover:bg-dac-alert hover:text-white">
                 Reiniciar datos de prueba
               </button>

@@ -644,3 +644,15 @@ Correccion de excepcion frontend posterior al guardado:
 - Los errores controlados registran stack, archivo, funcion y mensaje original en consola.
 - Si ocurre una falla posterior al guardado, la interfaz mantiene un mensaje amigable y no queda en blanco.
 
+## Sprint 5.7.3
+
+Registro Diario listo para produccion:
+
+- El guardado exitoso muestra `Registro Diario guardado correctamente.`.
+- Los reportes diarios se consultan exclusivamente desde Supabase por `project_id`.
+- El Store ya no hidrata actividades, reportes, fotos ni compromisos del Registro Diario desde `localStorage`.
+- Si Supabase no tiene datos reales, la pantalla queda vacia.
+- Un nuevo Registro Diario inicia sin fotos, actividades, compromisos ni observaciones del reporte anterior.
+- Se separa el borrador actual usando registros sin `dailyReportId`.
+- El boton `Reiniciar datos de prueba` solo esta disponible para rol `Administrador` y la accion queda protegida en el Store.
+
