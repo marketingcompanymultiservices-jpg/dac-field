@@ -656,3 +656,13 @@ Registro Diario listo para produccion:
 - Se separa el borrador actual usando registros sin `dailyReportId`.
 - El boton `Reiniciar datos de prueba` solo esta disponible para rol `Administrador` y la accion queda protegida en el Store.
 
+## Sprint 5.7.4
+
+Reportes diarios visibles entre usuarios:
+
+- DAC normaliza el `project_id` de Registro Diario para evitar que un valor local obsoleto impida ver reportes.
+- La carga de reportes registra en consola usuario autenticado, rol, `project_id`, origen Supabase y cantidad encontrada.
+- Registro Diario, Bitacora y Reportes muestran `No se encontraron reportes para este proyecto en Supabase.` cuando la consulta no devuelve registros.
+- El modulo Reportes incluye una seccion explicita de reportes diarios leidos desde `daily_reports`.
+- No existen filtros por creador, residente, propietario o usuario actual para listar reportes diarios del proyecto.
+

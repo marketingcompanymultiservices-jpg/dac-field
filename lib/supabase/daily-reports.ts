@@ -98,11 +98,13 @@ export async function loadDailyReportBundleFromSupabase(projectId: string): Prom
 
   const { data: userData } = await supabaseClient.auth.getUser();
   const authenticatedUser = userData.user?.email ?? "sin usuario autenticado";
+  const currentProfileRole = await getCurrentProfileRole();
 
   console.info("[DAC DailyReports] Consultando reportes diarios", {
     origin: "Supabase",
     projectId,
     authenticatedUser,
+    currentProfileRole,
     sql: "select * from daily_reports where project_id = :project_id order by report_date desc, report_time desc"
   });
 
@@ -131,11 +133,22 @@ export async function loadDailyReportBundleFromSupabase(projectId: string): Prom
     origin: "Supabase",
     projectId,
     authenticatedUser,
+    currentProfileRole,
     reportsFound: dailyReports.length,
     activitiesFound: activities.length,
     photosFound: photos.length,
     commitmentsFound: commitments.length
   });
+
+  if (dailyReports.length === 0) {
+    console.warn("[DAC DailyReports] No se encontraron reportes para este proyecto en Supabase.", {
+      origin: "Supabase",
+      projectId,
+      authenticatedUser,
+      currentProfileRole,
+      reportsFound: 0
+    });
+  }
 
   return { dailyReports, activities, photos, commitments };
 }
@@ -151,6 +164,7 @@ export async function saveDailyReportBundleToSupabase(input: {
 
   const { data: userData } = await supabaseClient.auth.getUser();
   const authenticatedUser = userData.user?.email ?? "sin usuario autenticado";
+  const currentProfileRole = await getCurrentProfileRole();
   const sanitizedPhotos = sanitizePhotosForSupabase(input.photos);
   const payload = {
     project_id: input.projectId,
@@ -164,6 +178,7 @@ export async function saveDailyReportBundleToSupabase(input: {
     origin: "Supabase",
     projectId: input.projectId,
     authenticatedUser,
+    currentProfileRole,
     sql: "select public.save_daily_report_bundle(:payload)",
     reportId: input.report.id,
     activitiesToSave: input.activities.length,
@@ -184,6 +199,7 @@ export async function saveDailyReportBundleToSupabase(input: {
       origin: "Supabase",
       projectId: input.projectId,
       authenticatedUser,
+      currentProfileRole,
       code: error.code,
       message: error.message,
       details: error.details,
@@ -204,10 +220,26 @@ export async function saveDailyReportBundleToSupabase(input: {
     origin: "Supabase",
     projectId: input.projectId,
     authenticatedUser,
+    currentProfileRole,
     result: data
   });
 
   return data;
+}
+
+async function getCurrentProfileRole() {
+  if (!supabaseClient) return "Supabase no configurado";
+  const { data, error } = await supabaseClient.rpc("current_profile_role");
+  if (error) {
+    console.error("[DAC DailyReports] Error consultando current_profile_role()", {
+      code: error.code,
+      message: error.message,
+      details: error.details,
+      hint: error.hint
+    });
+    return "rol no disponible";
+  }
+  return typeof data === "string" ? data : "rol no disponible";
 }
 
 function sanitizePhotosForSupabase(photos: DailyPhoto[]) {

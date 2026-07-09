@@ -342,6 +342,12 @@ export function DailyReportWizard({ projectName }: { projectName: string }) {
             </div>
           </div>
         )}
+        {dailyReports.length === 0 && (
+          <div className="mb-5 rounded-lg border border-dac-primary/10 bg-white p-4">
+            <p className="text-sm font-black uppercase text-dac-secondary">Reportes diarios</p>
+            <p className="mt-1 text-sm font-semibold text-dac-text/70">No se encontraron reportes para este proyecto en Supabase.</p>
+          </div>
+        )}
 
         {currentStep === 0 && (
           <div className="grid gap-4 sm:grid-cols-2">

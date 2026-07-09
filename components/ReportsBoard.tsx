@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import Link from "next/link";
 import { ReportCard } from "@/components/ReportCard";
 import { ReportFilter, ReportFilters, reportMatchesFilter } from "@/components/ReportFilters";
 import { ReportGenerator } from "@/components/ReportGenerator";
@@ -58,6 +59,31 @@ export function ReportsBoard({ reportTypes }: { reportTypes: ReportType[] }) {
   return (
     <div className="mt-6 grid gap-6">
       <ReportSummary reports={reports} reportTypes={reportTypes} />
+      <section className="rounded-lg border border-dac-primary/15 bg-white p-4 shadow-panel sm:p-5">
+        <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <p className="text-sm font-bold uppercase tracking-wide text-dac-secondary">Supabase</p>
+            <h2 className="text-xl font-black text-dac-primary">Reportes diarios del proyecto</h2>
+          </div>
+          <p className="text-sm font-semibold text-dac-text/60">{dailyReports.length} encontrados</p>
+        </div>
+        <div className="mt-4 grid gap-2">
+          {dailyReports.map((report) => (
+            <Link
+              key={report.id}
+              href={"/projects/" + report.projectId + "/daily-report/" + report.id}
+              className="focus-ring rounded-md border border-dac-primary/10 p-3 text-sm font-bold text-dac-primary hover:bg-dac-secondary/10"
+            >
+              {report.date} - {report.status} - {report.id} - {report.createdBy ?? "sin usuario"}
+            </Link>
+          ))}
+          {dailyReports.length === 0 && (
+            <p className="rounded-md border border-dac-primary/10 p-4 text-sm font-semibold text-dac-text/60">
+              No se encontraron reportes para este proyecto en Supabase.
+            </p>
+          )}
+        </div>
+      </section>
       <ReportGenerator reportTypes={reportTypes} onGenerate={handleAddReport} />
       {message && (
         <p className="rounded-lg border border-dac-secondary/30 bg-dac-secondary/10 p-4 text-sm font-bold text-dac-primary">

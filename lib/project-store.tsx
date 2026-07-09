@@ -10,8 +10,7 @@ import {
   documentItems,
   permissionActions,
   permissionModules,
-  projects,
-  reportItems
+  projects
 } from "@/lib/mock-data";
 import { buildProgressFromActivities, calculateProgressSummary } from "@/lib/progress";
 import { addDaysISO, getWeekStartISO } from "@/lib/planning";
@@ -121,6 +120,7 @@ type ProjectStoreValue = {
 };
 
 const ProjectStoreContext = createContext<ProjectStoreValue | null>(null);
+const ACTIVE_PROJECT_ID = projects[0].id;
 const IMAGE_READ_TIMEOUT_MS = 6000;
 
 export function ProjectStoreProvider({ children }: { children: ReactNode }) {
@@ -138,7 +138,7 @@ export function ProjectStoreProvider({ children }: { children: ReactNode }) {
   const [planningItems, setPlanningItems] = useState<ActivityPlanning[]>([]);
   const [initialSurvey, setInitialSurvey] = useState<InitialSurveyMetadata | null>(null);
   const [systemEvents, setSystemEvents] = useState<TimelineEvent[]>([]);
-  const [reports, setReports] = useState<ProjectReport[]>(reportItems);
+  const [reports, setReports] = useState<ProjectReport[]>([]);
   const [adminCompany, setAdminCompany] = useState<AdminCompany>(initialAdminCompany);
   const [adminUsers, setAdminUsers] = useState<AdminUser[]>(initialAdminUsers);
   const [adminRoles, setAdminRoles] = useState<AdminRole[]>(initialAdminRoles);
@@ -262,20 +262,21 @@ export function ProjectStoreProvider({ children }: { children: ReactNode }) {
   );
 
   async function saveReport(report: Omit<DailyReportEntry, "id" | "projectId" | "status">, status: DailyReportEntry["status"]) {
+    const projectIdForDailyReports = normalizeProjectId(project.id);
     const reportId = "daily-report-" + Date.now();
     const nextReport: DailyReportEntry = {
       ...report,
       id: reportId,
-      projectId: project.id,
+      projectId: projectIdForDailyReports,
       status
     };
-    const reportActivities = activities.filter((activity) => activity.projectId === project.id && activity.date === report.date && !activity.dailyReportId);
+    const reportActivities = activities.filter((activity) => normalizeProjectId(activity.projectId) === projectIdForDailyReports && activity.date === report.date && !activity.dailyReportId);
     const reportCommitments = commitments
-      .filter((commitment) => commitment.projectId === project.id && commitment.origin === "Registro Diario" && !commitment.dailyReportId)
+      .filter((commitment) => normalizeProjectId(commitment.projectId) === projectIdForDailyReports && commitment.origin === "Registro Diario" && !commitment.dailyReportId)
       .map((commitment) => ({ ...commitment, dailyReportId: commitment.dailyReportId ?? reportId }));
     const reportPhotos = await Promise.all(
       photos
-        .filter((photo) => photo.projectId === project.id && photo.date === report.date && !photo.dailyReportId && !photo.reportId)
+        .filter((photo) => normalizeProjectId(photo.projectId) === projectIdForDailyReports && photo.date === report.date && !photo.dailyReportId && !photo.reportId)
         .map(async (photo) => ({
           ...photo,
           reportId,
@@ -285,14 +286,14 @@ export function ProjectStoreProvider({ children }: { children: ReactNode }) {
     );
 
     await saveDailyReportBundleToSupabase({
-      projectId: project.id,
+      projectId: projectIdForDailyReports,
       report: nextReport,
       activities: reportActivities,
       photos: reportPhotos,
       commitments: reportCommitments
     });
 
-    const remoteBundle = await loadDailyReportBundleFromSupabase(project.id);
+    const remoteBundle = await loadDailyReportBundleFromSupabase(projectIdForDailyReports);
 
     setShouldPersist(true);
     setDailyReports(remoteBundle.dailyReports);
@@ -305,7 +306,7 @@ export function ProjectStoreProvider({ children }: { children: ReactNode }) {
     const storedState = loadAppState();
 
     if (storedState) {
-      setProjectBase(storedState.project);
+      setProjectBase(normalizeProject(storedState.project));
       setActivities([]);
       setDailyReports([]);
       setPhotos([]);
@@ -321,7 +322,7 @@ export function ProjectStoreProvider({ children }: { children: ReactNode }) {
       setPlanningItems((storedState.planningItems ?? []).map((item) => ({ ...item, plannedQuantity: item.plannedQuantity ?? 0, status: "Pendiente" })));
       setInitialSurvey(storedState.initialSurvey ?? null);
       setSystemEvents(storedState.systemEvents ?? []);
-      setReports(storedState.reports);
+      setReports([]);
       setAdminCompany(storedState.adminCompany ?? initialAdminCompany);
       setAdminUsers(mergeAdminUsers(storedState.adminUsers ?? initialAdminUsers));
       setAdminRoles(mergeAdminRoles(storedState.adminRoles ?? initialAdminRoles));
@@ -415,7 +416,14 @@ export function ProjectStoreProvider({ children }: { children: ReactNode }) {
     let active = true;
     async function loadRemoteDailyReports() {
       try {
-        const remoteBundle = await loadDailyReportBundleFromSupabase(projectBase.id);
+        const projectIdForDailyReports = normalizeProjectId(projectBase.id);
+        console.info("[DAC DailyReports] Store solicitando carga remota", {
+          origin: "Supabase",
+          function: "loadRemoteDailyReports",
+          projectBaseId: projectBase.id,
+          normalizedProjectId: projectIdForDailyReports
+        });
+        const remoteBundle = await loadDailyReportBundleFromSupabase(projectIdForDailyReports);
         if (!active) return;
 
         setDailyReports(remoteBundle.dailyReports);
@@ -431,7 +439,7 @@ export function ProjectStoreProvider({ children }: { children: ReactNode }) {
         setCommitments([]);
         console.error("[DAC DailyReports] No fue posible cargar reportes diarios desde Supabase", {
           origin: "Supabase",
-          projectId: projectBase.id,
+          projectId: normalizeProjectId(projectBase.id),
           error
         });
         setSystemEvents((current) => [
@@ -512,7 +520,7 @@ export function ProjectStoreProvider({ children }: { children: ReactNode }) {
     setPlanningItems([]);
     setInitialSurvey(null);
     setSystemEvents([]);
-    setReports(reportItems);
+    setReports([]);
     setAdminCompany(initialAdminCompany);
     setAdminUsers(initialAdminUsers);
     setAdminRoles(initialAdminRoles);
@@ -1035,6 +1043,15 @@ function stripPhotoImageData(photo: DailyPhoto): DailyPhoto {
   if (!photo.imageData) return photo;
   const { imageData: _imageData, ...metadata } = photo;
   return metadata;
+}
+
+function normalizeProject(project: Project): Project {
+  const knownProject = projects.find((item) => item.id === project.id);
+  return knownProject ? { ...knownProject, ...project, id: knownProject.id } : projects[0];
+}
+
+function normalizeProjectId(projectId?: string) {
+  return projects.some((item) => item.id === projectId) ? projectId! : ACTIVE_PROJECT_ID;
 }
 
 function getImageWithTimeout(id: string) {

@@ -32,6 +32,12 @@ export default function BitacoraPage() {
           </div>
         </section>
       )}
+      {dailyReports.length === 0 && (
+        <section className="mt-6 rounded-lg border border-dac-primary/15 bg-white p-5 shadow-panel">
+          <h2 className="text-xl font-black text-dac-primary">Reportes diarios disponibles</h2>
+          <p className="mt-1 text-sm font-semibold text-dac-text/70">No se encontraron reportes para este proyecto en Supabase.</p>
+        </section>
+      )}
 
       <section className="mt-6 rounded-lg border border-dac-primary/15 bg-white p-5 shadow-panel sm:p-6">
         <ol className="relative border-l-2 border-dac-secondary/40 pl-5">
