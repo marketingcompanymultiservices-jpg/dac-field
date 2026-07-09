@@ -55,11 +55,11 @@ export function DailyReportView({ project, report, activities, commitments, phot
   }, [photos, report.date, report.id]);
 
   return (
-    <article className="grid gap-5 print:gap-4">
+    <article className="grid w-full min-w-0 gap-4 overflow-hidden print:gap-4 sm:gap-5">
       <ReportHeader project={project} report={report} />
 
       <ReportSection title="Resumen automatico">
-        <p className="leading-7 text-dac-text/80">{summary}</p>
+        <p className="break-words leading-7 text-dac-text/80">{summary}</p>
       </ReportSection>
 
       <ReportSection title="Informacion general">
@@ -95,24 +95,42 @@ export function DailyReportView({ project, report, activities, commitments, phot
       </ReportSection>
 
       <ReportSection title="Actividades ejecutadas">
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[760px] border-collapse text-left">
+        <div className="grid gap-3 md:hidden">
+          {reportActivities.map((activity) => (
+            <article key={activity.id} className="min-w-0 rounded-md border border-dac-primary/10 bg-dac-primary/[0.03] p-3">
+              <p className="break-words text-sm font-black text-dac-primary">{activity.activity}</p>
+              <dl className="mt-3 grid gap-2 text-sm">
+                <MobileInfo label="Cantidad" value={numberFormatter.format(activity.quantity) + " " + activity.unit} />
+                <MobileInfo label="Frente" value={activity.workFront || "Sin frente"} />
+                <MobileInfo label="Responsable" value={activity.owner || "Sin responsable"} />
+                <MobileInfo label="Horario" value={(activity.startTime || activity.time) + " - " + (activity.endTime || "Sin cierre")} />
+                <MobileInfo label="Observacion" value={activity.observation || "Sin observacion."} />
+              </dl>
+            </article>
+          ))}
+          {reportActivities.length === 0 && (
+            <p className="rounded-md border border-dac-primary/10 p-4 text-sm font-semibold text-dac-text/60">No hay actividades registradas para esta fecha.</p>
+          )}
+        </div>
+
+        <div className="hidden md:block">
+          <table className="w-full table-fixed border-collapse text-left">
             <thead className="bg-dac-primary text-white">
               <tr>
-                {["Actividad", "Cantidad", "Frente", "Responsable", "Horario", "Observacion"].map((header) => (
-                  <th key={header} className="px-3 py-3 text-xs font-black uppercase">{header}</th>
+                {["Actividad", "Cantidad", "Frente", "Responsable", "Horario", "Observacion"].map((header, index) => (
+                  <th key={header} className={"px-3 py-3 text-xs font-black uppercase " + (index === 0 || index === 5 ? "w-[24%]" : "w-[13%]")}>{header}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
               {reportActivities.map((activity) => (
                 <tr key={activity.id} className="border-b border-dac-primary/10 last:border-b-0">
-                  <td className="px-3 py-3 text-sm font-bold">{activity.activity}</td>
-                  <td className="px-3 py-3 text-sm font-semibold">{numberFormatter.format(activity.quantity)} {activity.unit}</td>
-                  <td className="px-3 py-3 text-sm font-semibold">{activity.workFront || "Sin frente"}</td>
-                  <td className="px-3 py-3 text-sm font-semibold">{activity.owner || "Sin responsable"}</td>
-                  <td className="px-3 py-3 text-sm font-semibold">{activity.startTime || activity.time} - {activity.endTime || "Sin cierre"}</td>
-                  <td className="px-3 py-3 text-sm text-dac-text/75">{activity.observation || "Sin observacion."}</td>
+                  <td className="break-words px-3 py-3 text-sm font-bold">{activity.activity}</td>
+                  <td className="break-words px-3 py-3 text-sm font-semibold">{numberFormatter.format(activity.quantity)} {activity.unit}</td>
+                  <td className="break-words px-3 py-3 text-sm font-semibold">{activity.workFront || "Sin frente"}</td>
+                  <td className="break-words px-3 py-3 text-sm font-semibold">{activity.owner || "Sin responsable"}</td>
+                  <td className="break-words px-3 py-3 text-sm font-semibold">{activity.startTime || activity.time} - {activity.endTime || "Sin cierre"}</td>
+                  <td className="break-words px-3 py-3 text-sm text-dac-text/75">{activity.observation || "Sin observacion."}</td>
                 </tr>
               ))}
               {reportActivities.length === 0 && (
@@ -126,7 +144,7 @@ export function DailyReportView({ project, report, activities, commitments, phot
       </ReportSection>
 
       <ReportSection title="Observaciones">
-        <p className="leading-7 text-dac-text/80">{report.observations || "Sin observaciones registradas."}</p>
+        <p className="break-words leading-7 text-dac-text/80">{report.observations || "Sin observaciones registradas."}</p>
       </ReportSection>
 
       <ReportSection title="Problemas y acciones">
@@ -141,10 +159,10 @@ export function DailyReportView({ project, report, activities, commitments, phot
       <ReportSection title="Compromisos">
         <div className="grid gap-3">
           {reportCommitments.map((commitment) => (
-            <article key={commitment.id} className="rounded-md border border-dac-primary/10 p-3">
-              <p className="font-black text-dac-primary">{commitment.description}</p>
-              <p className="mt-1 text-sm font-semibold text-dac-text/70">{commitment.owner} - {commitment.priority} - {commitment.status}</p>
-              <p className="mt-1 text-sm font-semibold text-dac-alert">Fecha limite: {commitment.dueDate}</p>
+            <article key={commitment.id} className="min-w-0 rounded-md border border-dac-primary/10 p-3">
+              <p className="break-words font-black text-dac-primary">{commitment.description}</p>
+              <p className="mt-1 break-words text-sm font-semibold text-dac-text/70">{commitment.owner} - {commitment.priority} - {commitment.status}</p>
+              <p className="mt-1 break-words text-sm font-semibold text-dac-alert">Fecha limite: {commitment.dueDate}</p>
             </article>
           ))}
           {reportCommitments.length === 0 && <p className="text-sm font-semibold text-dac-text/60">Sin compromisos asociados a la jornada.</p>}
@@ -152,11 +170,11 @@ export function DailyReportView({ project, report, activities, commitments, phot
       </ReportSection>
 
       <ReportSection title="Registro fotografico">
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="grid min-w-0 gap-3 sm:grid-cols-2 lg:grid-cols-4">
           {hydratedPhotos.map(({ photo, dataUrl }, index) => (
-            <figure key={photo.id} className="break-inside-avoid rounded-md border border-dac-primary/15 bg-white p-2">
-              <img src={dataUrl} alt={photo.description || photo.name} className="h-44 w-full rounded object-cover print:h-36" />
-              <figcaption className="mt-2 text-xs font-semibold text-dac-text/70">
+            <figure key={photo.id} className="min-w-0 break-inside-avoid rounded-md border border-dac-primary/15 bg-white p-2">
+              <img src={dataUrl} alt={photo.description || photo.name} className="h-auto max-h-72 w-full rounded object-cover sm:h-44 print:h-36" />
+              <figcaption className="mt-2 break-words text-xs font-semibold text-dac-text/70">
                 Foto {index + 1}: {photo.description || photo.name}
               </figcaption>
             </figure>
@@ -170,12 +188,21 @@ export function DailyReportView({ project, report, activities, commitments, phot
       </ReportSection>
 
       <ReportSection title="Firma del residente">
-        <div className="rounded-md border border-dac-primary/15 p-5">
+        <div className="min-w-0 rounded-md border border-dac-primary/15 p-5">
           <p className="text-sm font-bold text-dac-text/60">Firma simulada</p>
-          <p className="mt-4 text-2xl font-black text-dac-primary">{report.signature || project.resident}</p>
+          <p className="mt-4 break-words text-2xl font-black text-dac-primary">{report.signature || project.resident}</p>
         </div>
       </ReportSection>
     </article>
+  );
+}
+
+function MobileInfo({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="min-w-0 rounded bg-white p-2">
+      <dt className="text-[11px] font-black uppercase text-dac-text/50">{label}</dt>
+      <dd className="mt-1 break-words font-semibold text-dac-text">{value}</dd>
+    </div>
   );
 }
 
