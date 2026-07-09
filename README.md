@@ -623,3 +623,14 @@ Registro Diario y Reportes Diarios compartidos por proyecto:
 - La consola informa proyecto consultado, usuario autenticado, consulta ejecutada, origen de datos y cantidades encontradas.
 - Migracion requerida: `database/sprint-5-7-daily-reports-supabase.sql`.
 
+## Sprint 5.7.1
+
+Correccion de guardado infinito en Registro Diario:
+
+- El boton ya no queda indefinidamente en `Guardando...`.
+- La lectura de fotografias desde IndexedDB tiene timeout.
+- La llamada a `save_daily_report_bundle(payload)` tiene timeout.
+- Si Supabase falla, DAC muestra `code`, `message`, `details` y `hint`.
+- Si guarda correctamente, DAC recarga los reportes desde Supabase por `project_id`.
+- Las fotografias con `image_data` demasiado grande no bloquean el guardado; se registra el metadato y se deja trazabilidad en consola.
+

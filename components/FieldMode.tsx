@@ -234,9 +234,9 @@ export function FieldMode() {
         },
         "Enviado"
       );
-      setMessage("Reporte enviado desde Modo Obra y visible para el proyecto.");
+      setMessage("Registro Diario guardado en Supabase correctamente.");
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "No fue posible enviar el reporte a Supabase.");
+      setMessage("No fue posible guardar el Registro Diario en Supabase. " + (error instanceof Error ? error.message : "code: DAC_UNKNOWN | message: Error desconocido | details: Sin detalles | hint: Revisa consola."));
     } finally {
       setIsSendingReport(false);
     }

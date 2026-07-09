@@ -290,9 +290,9 @@ export function DailyReportWizard({ projectName }: { projectName: string }) {
         },
         status
       );
-      setMessage(status === "Borrador" ? "Borrador guardado en Supabase." : "Registro enviado y disponible para todos los usuarios autorizados.");
+      setMessage("Registro Diario guardado en Supabase correctamente.");
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "No fue posible guardar el reporte diario en Supabase.");
+      setMessage("No fue posible guardar el Registro Diario en Supabase. " + (error instanceof Error ? error.message : "code: DAC_UNKNOWN | message: Error desconocido | details: Sin detalles | hint: Revisa consola."));
     } finally {
       setIsSavingReport(false);
     }

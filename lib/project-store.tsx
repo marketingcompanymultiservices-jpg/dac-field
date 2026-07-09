@@ -123,6 +123,7 @@ type ProjectStoreValue = {
 };
 
 const ProjectStoreContext = createContext<ProjectStoreValue | null>(null);
+const IMAGE_READ_TIMEOUT_MS = 6000;
 
 export function ProjectStoreProvider({ children }: { children: ReactNode }) {
   const [projectBase, setProjectBase] = useState<Project>(projects[0]);
@@ -281,7 +282,7 @@ export function ProjectStoreProvider({ children }: { children: ReactNode }) {
           ...photo,
           reportId,
           dailyReportId: reportId,
-          imageData: photo.imageData || (await getImage(photo.id).catch(() => ""))
+          imageData: photo.imageData || (await getImageWithTimeout(photo.id).catch(() => ""))
         }))
     );
 
@@ -293,10 +294,13 @@ export function ProjectStoreProvider({ children }: { children: ReactNode }) {
       commitments: reportCommitments
     });
 
+    const remoteBundle = await loadDailyReportBundleFromSupabase(project.id);
+
     setShouldPersist(true);
-    setDailyReports((current) => [nextReport, ...current.filter((item) => item.id !== reportId)]);
-    setCommitments((current) => current.map((commitment) => (reportCommitments.some((item) => item.id === commitment.id) ? { ...commitment, dailyReportId: reportId } : commitment)));
-    setPhotos((current) => current.map((photo) => (photo.date === report.date && photo.projectId === project.id ? { ...photo, reportId, dailyReportId: reportId } : photo)));
+    setDailyReports(remoteBundle.dailyReports);
+    setActivities(remoteBundle.activities);
+    setPhotos(remoteBundle.photos);
+    setCommitments(remoteBundle.commitments.length > 0 ? remoteBundle.commitments : commitmentItems);
   }
 
   useEffect(() => {
@@ -1015,6 +1019,21 @@ export function useProjectStore() {
   const context = useContext(ProjectStoreContext);
   if (!context) throw new Error("useProjectStore must be used inside ProjectStoreProvider");
   return context;
+}
+
+function getImageWithTimeout(id: string) {
+  return Promise.race([
+    getImage(id),
+    new Promise<string>((resolve) => {
+      globalThis.setTimeout(() => {
+        console.warn("[DAC DailyReports] Timeout leyendo fotografia desde IndexedDB; se guardara metadato sin image_data", {
+          photoId: id,
+          timeoutMs: IMAGE_READ_TIMEOUT_MS
+        });
+        resolve("");
+      }, IMAGE_READ_TIMEOUT_MS);
+    })
+  ]);
 }
 
 function normalizeRolePermissions(role: AdminRole): AdminRole {

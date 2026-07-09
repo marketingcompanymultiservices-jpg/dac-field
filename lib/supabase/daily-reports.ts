@@ -89,6 +89,10 @@ type SupabaseOperationError = {
   hint?: string;
 };
 
+const DAILY_REPORT_QUERY_TIMEOUT_MS = 25000;
+const DAILY_REPORT_SAVE_TIMEOUT_MS = 30000;
+const MAX_IMAGE_DATA_CHARACTERS = 700000;
+
 export async function loadDailyReportBundleFromSupabase(projectId: string): Promise<DailyReportBundle> {
   if (!supabaseClient) throw new Error("Supabase no esta configurado.");
 
@@ -102,12 +106,16 @@ export async function loadDailyReportBundleFromSupabase(projectId: string): Prom
     sql: "select * from daily_reports where project_id = :project_id order by report_date desc, report_time desc"
   });
 
-  const [reportsResult, activitiesResult, photosResult, commitmentsResult] = await Promise.all([
-    supabaseClient.from("daily_reports").select("*").eq("project_id", projectId).order("report_date", { ascending: false }).order("report_time", { ascending: false }),
-    supabaseClient.from("report_activities").select("*").eq("project_id", projectId).order("activity_date", { ascending: false }).order("activity_time", { ascending: false }),
-    supabaseClient.from("report_photos").select("*").eq("project_id", projectId).order("photo_date", { ascending: false }).order("photo_time", { ascending: false }),
-    supabaseClient.from("commitments").select("*").eq("project_id", projectId).order("created_at", { ascending: false })
-  ]);
+  const [reportsResult, activitiesResult, photosResult, commitmentsResult] = await withTimeout(
+    Promise.all([
+      supabaseClient.from("daily_reports").select("*").eq("project_id", projectId).order("report_date", { ascending: false }).order("report_time", { ascending: false }),
+      supabaseClient.from("report_activities").select("*").eq("project_id", projectId).order("activity_date", { ascending: false }).order("activity_time", { ascending: false }),
+      supabaseClient.from("report_photos").select("*").eq("project_id", projectId).order("photo_date", { ascending: false }).order("photo_time", { ascending: false }),
+      supabaseClient.from("commitments").select("*").eq("project_id", projectId).order("created_at", { ascending: false })
+    ]),
+    DAILY_REPORT_QUERY_TIMEOUT_MS,
+    "Timeout consultando reportes diarios en Supabase"
+  );
 
   if (reportsResult.error) throw buildDailyReportOperationError("Error leyendo daily_reports", reportsResult.error, { projectId, authenticatedUser });
   if (activitiesResult.error) throw buildDailyReportOperationError("Error leyendo report_activities", activitiesResult.error, { projectId, authenticatedUser });
@@ -143,11 +151,12 @@ export async function saveDailyReportBundleToSupabase(input: {
 
   const { data: userData } = await supabaseClient.auth.getUser();
   const authenticatedUser = userData.user?.email ?? "sin usuario autenticado";
+  const sanitizedPhotos = sanitizePhotosForSupabase(input.photos);
   const payload = {
     project_id: input.projectId,
     report: input.report,
     activities: input.activities,
-    photos: input.photos,
+    photos: sanitizedPhotos,
     commitments: input.commitments
   };
 
@@ -159,10 +168,16 @@ export async function saveDailyReportBundleToSupabase(input: {
     reportId: input.report.id,
     activitiesToSave: input.activities.length,
     photosToSave: input.photos.length,
+    photosWithImageData: sanitizedPhotos.filter((photo) => Boolean(photo.imageData)).length,
+    largeImagesOmitted: input.photos.filter((photo) => (photo.imageData?.length ?? 0) > MAX_IMAGE_DATA_CHARACTERS).length,
     commitmentsToSave: input.commitments.length
   });
 
-  const { data, error } = await supabaseClient.rpc("save_daily_report_bundle", { payload });
+  const { data, error } = await withTimeout(
+    supabaseClient.rpc("save_daily_report_bundle", { payload }),
+    DAILY_REPORT_SAVE_TIMEOUT_MS,
+    "Timeout ejecutando save_daily_report_bundle en Supabase"
+  );
 
   if (error) {
     console.error("[DAC DailyReports] Error completo guardando reporte diario", {
@@ -175,7 +190,7 @@ export async function saveDailyReportBundleToSupabase(input: {
       hint: error.hint,
       report: input.report,
       firstActivity: input.activities[0] ?? null,
-      firstPhoto: input.photos[0] ? { ...input.photos[0], imageData: input.photos[0].imageData ? "[base64]" : undefined } : null,
+      firstPhoto: sanitizedPhotos[0] ? { ...sanitizedPhotos[0], imageData: sanitizedPhotos[0].imageData ? "[base64]" : undefined } : null,
       firstCommitment: input.commitments[0] ?? null
     });
     throw buildDailyReportOperationError("Error guardando paquete diario en Supabase", error, {
@@ -193,6 +208,50 @@ export async function saveDailyReportBundleToSupabase(input: {
   });
 
   return data;
+}
+
+function sanitizePhotosForSupabase(photos: DailyPhoto[]) {
+  return photos.map((photo) => {
+    if (!photo.imageData || photo.imageData.length <= MAX_IMAGE_DATA_CHARACTERS) return photo;
+
+    console.warn("[DAC DailyReports] image_data omitida para evitar bloqueo del guardado movil", {
+      origin: "Supabase",
+      photoId: photo.id,
+      name: photo.name,
+      imageDataCharacters: photo.imageData.length,
+      maxImageDataCharacters: MAX_IMAGE_DATA_CHARACTERS
+    });
+
+    return {
+      ...photo,
+      imageData: undefined
+    };
+  });
+}
+
+function withTimeout<T>(promise: PromiseLike<T>, timeoutMs: number, message: string) {
+  return new Promise<T>((resolve, reject) => {
+    const timeoutId = globalThis.setTimeout(() => {
+      reject(
+        buildDailyReportOperationError(message, {
+          code: "DAC_TIMEOUT",
+          message,
+          details: "La operacion supero " + timeoutMs + " ms sin respuesta.",
+          hint: "Revisa conectividad, RLS, funcion save_daily_report_bundle y tamano de fotografias."
+        })
+      );
+    }, timeoutMs);
+
+    Promise.resolve(promise)
+      .then((value) => {
+        globalThis.clearTimeout(timeoutId);
+        resolve(value);
+      })
+      .catch((error) => {
+        globalThis.clearTimeout(timeoutId);
+        reject(error);
+      });
+  });
 }
 
 function mapDailyReportRow(row: DailyReportRow): DailyReportEntry {
@@ -280,10 +339,10 @@ function mapCommitmentRow(row: CommitmentRow): Commitment {
 function buildDailyReportOperationError(message: string, error: SupabaseOperationError, context?: Record<string, unknown>) {
   const fullMessage = [
     message,
-    error.code ? "code: " + error.code : "",
-    error.message ? "message: " + error.message : "",
-    error.details ? "details: " + error.details : "",
-    error.hint ? "hint: " + error.hint : ""
+    "code: " + (error.code ?? "sin codigo"),
+    "message: " + (error.message ?? "sin mensaje"),
+    "details: " + (error.details ?? "sin detalles"),
+    "hint: " + (error.hint ?? "sin sugerencia")
   ]
     .filter(Boolean)
     .join(" | ");
