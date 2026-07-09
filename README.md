@@ -250,15 +250,29 @@ Reporte Diario Real:
 
 - Nueva ruta `/projects/[projectId]/daily-report/[reportId]`.
 - El reporte lee informacion real del Store Global.
-- Registro Diario guarda informacion general, personal, contratistas, equipos, materiales, observaciones, problemas, acciones y firma.
+- Registro Diario guarda informacion general, personal de obra, equipos, material utilizado, actividades, observaciones, problemas, acciones y firma.
 - La vista cruza actividades, compromisos y fotografias por fecha del reporte.
 - Se agrega boton `Ver reporte diario` desde Registro Diario y Bitacora.
 - Estructura tipo informe con encabezado DAC, datos de obra, codigo, fecha, residente y estado.
-- Secciones: informacion general, personal, equipos/materiales, actividades, observaciones, problemas/acciones, compromisos, fotografias y firma.
+- Secciones: informacion general, personal, equipos/materiales, actividades presupuestales, actividades libres, observaciones, problemas/acciones, compromisos, fotografias y firma.
 - Resumen automatico de jornada con actividades, compromisos y fotografias.
 - Acciones: Volver, Imprimir y Descargar PDF simulado.
 - `Imprimir` usa `window.print()`.
 - El PDF real queda pendiente para un sprint futuro.
+
+## Sprint 5.7.7
+
+Mejoras funcionales del Registro Diario:
+
+- El Registro Diario es la fuente oficial de informacion operativa de DAC.
+- Personal de obra ahora registra numero total de personas y listado de trabajadores.
+- Se elimina `Material recibido`; ese flujo queda reservado para un futuro modulo de Inventario/Almacen.
+- Se agrega `Material utilizado` como bloque informativo sin impacto sobre inventario ni presupuesto.
+- Las actividades ejecutadas se separan en actividades presupuestales y actividades libres.
+- Las actividades libres quedan en el reporte diario, pero no modifican avance ni presupuesto.
+- El resumen automatico considera personas, actividades presupuestales, actividades libres, material utilizado, compromisos y fotografias.
+- La vista imprimible/PDF del Reporte Diario muestra personal, material utilizado, actividades presupuestales y actividades libres.
+- Documentacion: `docs/sprint-5-7-7-mejoras-registro-diario.md`.
 
 ## Sprint 3.0
 

@@ -6,11 +6,14 @@ import { useAuth } from "@/components/AuthProvider";
 import { deleteImage, getImage, saveImage } from "@/lib/imageStorage";
 import { getProgressStatus } from "@/lib/progress";
 import { useProjectStore } from "@/lib/project-store";
-import type { CommitmentPriority } from "@/types";
+import type { CommitmentPriority, DailyActivity } from "@/types";
 
 type ActivityDraft = {
+  activityType: "budget" | "free";
   budgetItemId: string;
   activity: string;
+  freeActivityName: string;
+  freeActivityDescription: string;
   unit: string;
   quantityToday: string;
   observation: string;
@@ -32,15 +35,28 @@ type CommitmentDraft = {
   priority: CommitmentPriority;
 };
 
+type WorkerDraft = {
+  id: string;
+  name: string;
+  role: string;
+  company: string;
+  observation: string;
+};
+
+type MaterialUsedDraft = {
+  id: string;
+  material: string;
+  unit: string;
+  quantity: string;
+  observation: string;
+};
+
 type ReportData = {
   date: string;
   time: string;
   weather: string;
-  administrativeStaff: string;
-  operativeStaff: string;
-  contractors: string;
+  peopleCount: string;
   equipment: string;
-  material: string;
   observations: string;
   problems: string;
   actions: string;
@@ -49,7 +65,7 @@ type ReportData = {
 
 const steps = [
   "Informacion general",
-  "Personal y contratistas",
+  "Personal de obra",
   "Equipos y materiales",
   "Actividades ejecutadas",
   "Observaciones, problemas y acciones",
@@ -62,11 +78,8 @@ const initialReport: ReportData = {
   date: "",
   time: "",
   weather: "",
-  administrativeStaff: "",
-  operativeStaff: "",
-  contractors: "",
+  peopleCount: "",
   equipment: "",
-  material: "",
   observations: "",
   problems: "",
   actions: "",
@@ -103,6 +116,10 @@ export function DailyReportWizard({ projectName }: { projectName: string }) {
   const [photoPreviews, setPhotoPreviews] = useState<Record<string, string>>({});
   const [activityDraft, setActivityDraft] = useState<ActivityDraft>(getEmptyActivityDraft());
   const [activitySearch, setActivitySearch] = useState("");
+  const [workerDraft, setWorkerDraft] = useState<WorkerDraft>(getEmptyWorkerDraft());
+  const [workers, setWorkers] = useState<WorkerDraft[]>([]);
+  const [materialDraft, setMaterialDraft] = useState<MaterialUsedDraft>(getEmptyMaterialDraft());
+  const [materialsUsed, setMaterialsUsed] = useState<MaterialUsedDraft[]>([]);
   const [commitmentDraft, setCommitmentDraft] = useState<CommitmentDraft>({ description: "", owner: "", dueDate: "", priority: "Media" });
   const currentUserName = profile ? (profile.firstName + " " + profile.lastName).trim() : user?.email ?? project.resident;
   const currentUserEmail = user?.email ?? currentUserName;
@@ -162,7 +179,71 @@ export function DailyReportWizard({ projectName }: { projectName: string }) {
     return report.time || new Date().toTimeString().slice(0, 5);
   }
 
+  function addWorker() {
+    if (!workerDraft.name.trim() || !workerDraft.role.trim()) {
+      setMessage("Registra nombre y cargo o cuadrilla del trabajador.");
+      return;
+    }
+
+    setWorkers((current) => [...current, { ...workerDraft, id: createClientId("worker") }]);
+    setWorkerDraft(getEmptyWorkerDraft());
+    setMessage("Trabajador agregado al personal de obra.");
+  }
+
+  function removeWorker(id: string) {
+    setWorkers((current) => current.filter((worker) => worker.id !== id));
+  }
+
+  function addMaterialUsed() {
+    if (!materialDraft.material.trim() || !materialDraft.unit.trim()) {
+      setMessage("Registra material y unidad antes de agregarlo.");
+      return;
+    }
+
+    const quantity = Number(materialDraft.quantity || 0);
+    if (!Number.isFinite(quantity) || quantity <= 0) {
+      setMessage("La cantidad de material utilizado debe ser mayor que cero.");
+      return;
+    }
+
+    setMaterialsUsed((current) => [...current, { ...materialDraft, id: createClientId("material") }]);
+    setMaterialDraft(getEmptyMaterialDraft());
+    setMessage("Material utilizado agregado al Registro Diario.");
+  }
+
+  function removeMaterialUsed(id: string) {
+    setMaterialsUsed((current) => current.filter((material) => material.id !== id));
+  }
+
   function addActivity() {
+    if (activityDraft.activityType === "free") {
+      if (!activityDraft.freeActivityName.trim()) {
+        setMessage("Escribe el nombre de la actividad libre.");
+        return;
+      }
+
+      addDailyActivity({
+        activity: activityDraft.freeActivityName.trim(),
+        unit: "Actividad",
+        quantity: 1,
+        observation: activityDraft.freeActivityDescription.trim() || activityDraft.observation.trim(),
+        workFront: activityDraft.workFront.trim(),
+        owner: activityDraft.owner.trim() || currentUserName,
+        startTime: activityDraft.startTime,
+        endTime: activityDraft.endTime,
+        photoCount: 0,
+        date: getReportDate(),
+        time: getReportTime(),
+        createdBy: currentUserEmail,
+        updatedBy: currentUserEmail
+      });
+
+      setActivityDraft(getEmptyActivityDraft());
+      setActivitySearch("");
+      setMessage("Actividad libre agregada al Registro Diario. No modifica el presupuesto.");
+      return;
+    }
+
     if (!selectedBudgetItem) {
       setMessage("Selecciona una actividad del presupuesto antes de agregar avance.");
       return;
@@ -282,11 +363,11 @@ export function DailyReportWizard({ projectName }: { projectName: string }) {
           date: getReportDate(),
           time: getReportTime(),
           weather: report.weather,
-          administrativeStaff: report.administrativeStaff,
-          operativeStaff: report.operativeStaff,
-          contractors: report.contractors,
+          administrativeStaff: serializePersonnel(report.peopleCount, workers),
+          operativeStaff: "",
+          contractors: "",
           equipment: report.equipment,
-          material: report.material,
+          material: serializeMaterialsUsed(materialsUsed),
           observations: report.observations,
           problems: report.problems,
           actions: report.actions,
@@ -299,6 +380,10 @@ export function DailyReportWizard({ projectName }: { projectName: string }) {
       setReport(initialReport);
       setActivityDraft(getEmptyActivityDraft());
       setActivitySearch("");
+      setWorkerDraft(getEmptyWorkerDraft());
+      setWorkers([]);
+      setMaterialDraft(getEmptyMaterialDraft());
+      setMaterialsUsed([]);
       setCommitmentDraft({ description: "", owner: "", dueDate: "", priority: "Media" });
       setPhotoPreviews({});
       setPhotoMessage("");
@@ -359,23 +444,74 @@ export function DailyReportWizard({ projectName }: { projectName: string }) {
 
         {currentStep === 1 && (
           <div className="grid gap-4">
-            <TextArea label="Personal administrativo" value={report.administrativeStaff} placeholder="Director, residente, auxiliar SST" onChange={(value) => updateReport("administrativeStaff", value)} />
-            <TextArea label="Personal operativo" value={report.operativeStaff} placeholder="18 oficiales y ayudantes" onChange={(value) => updateReport("operativeStaff", value)} />
-            <TextArea label="Contratistas presentes" value={report.contractors} placeholder="Estructura, redes, mamposteria" onChange={(value) => updateReport("contractors", value)} />
+            <Field label="Numero total de personas en obra" type="number" value={report.peopleCount} placeholder="18" onChange={(value) => updateReport("peopleCount", value)} />
+            <div className="grid gap-4 rounded-lg border border-dac-primary/10 p-4 sm:grid-cols-2">
+              <p className="text-sm font-black uppercase text-dac-primary sm:col-span-2">Listado de trabajadores</p>
+              <Field label="Nombre" value={workerDraft.name} placeholder="Nombre del trabajador" onChange={(value) => setWorkerDraft((current) => ({ ...current, name: value }))} />
+              <Field label="Cargo o cuadrilla" value={workerDraft.role} placeholder="Oficial, ayudante, estructura" onChange={(value) => setWorkerDraft((current) => ({ ...current, role: value }))} />
+              <Field label="Empresa opcional" value={workerDraft.company} placeholder="Contratista o empresa" onChange={(value) => setWorkerDraft((current) => ({ ...current, company: value }))} />
+              <Field label="Observaciones opcionales" value={workerDraft.observation} placeholder="Ingreso parcial, novedad, frente" onChange={(value) => setWorkerDraft((current) => ({ ...current, observation: value }))} />
+              <button type="button" onClick={addWorker} className="focus-ring rounded-md bg-dac-primary px-5 py-3 font-bold text-white hover:bg-dac-secondary sm:col-span-2">Agregar trabajador</button>
+            </div>
+            <ItemList
+              empty="Aun no hay trabajadores agregados."
+              items={workers.map((worker) => ({
+                id: worker.id,
+                title: worker.name,
+                meta: [worker.role, worker.company].filter(Boolean).join(" - "),
+                detail: worker.observation || "Sin observaciones"
+              }))}
+              onRemove={removeWorker}
+            />
           </div>
         )}
 
         {currentStep === 2 && (
           <div className="grid gap-4">
             <TextArea label="Equipos utilizados" value={report.equipment} placeholder="Mezcladora, andamios, cortadora" onChange={(value) => updateReport("equipment", value)} />
-            <TextArea label="Material recibido" value={report.material} placeholder="Cemento, acero, tuberia PVC" onChange={(value) => updateReport("material", value)} />
+            <div className="grid gap-4 rounded-lg border border-dac-primary/10 p-4 sm:grid-cols-2">
+              <p className="text-sm font-black uppercase text-dac-primary sm:col-span-2">Material utilizado</p>
+              <Field label="Material" value={materialDraft.material} placeholder="Cemento, malla, varilla, concreto" onChange={(value) => setMaterialDraft((current) => ({ ...current, material: value }))} />
+              <Field label="Unidad" value={materialDraft.unit} placeholder="Bultos, m2, varillas, m3" onChange={(value) => setMaterialDraft((current) => ({ ...current, unit: value }))} />
+              <Field label="Cantidad" type="number" value={materialDraft.quantity} placeholder="3" onChange={(value) => setMaterialDraft((current) => ({ ...current, quantity: value }))} />
+              <Field label="Observacion opcional" value={materialDraft.observation} placeholder="Uso informativo, sin afectar inventario" onChange={(value) => setMaterialDraft((current) => ({ ...current, observation: value }))} />
+              <button type="button" onClick={addMaterialUsed} className="focus-ring rounded-md bg-dac-primary px-5 py-3 font-bold text-white hover:bg-dac-secondary sm:col-span-2">Agregar material utilizado</button>
+            </div>
+            <ItemList
+              empty="Aun no hay materiales utilizados agregados."
+              items={materialsUsed.map((material) => ({
+                id: material.id,
+                title: material.material,
+                meta: material.quantity + " " + material.unit,
+                detail: material.observation || "Sin observacion"
+              }))}
+              onRemove={removeMaterialUsed}
+            />
           </div>
         )}
 
         {currentStep === 3 && (
           <div className="grid gap-5">
             <div className="grid gap-4 rounded-lg border border-dac-primary/10 p-4 sm:grid-cols-2">
-              <div className="sm:col-span-2">
+              <div className="grid gap-3 sm:col-span-2 sm:grid-cols-2">
+                <button
+                  type="button"
+                  onClick={() => setActivityDraft((current) => ({ ...current, activityType: "budget" }))}
+                  className={"focus-ring rounded-md border px-4 py-3 text-sm font-black " + (activityDraft.activityType === "budget" ? "border-dac-primary bg-dac-primary text-white" : "border-dac-primary/20 text-dac-primary hover:bg-dac-secondary/10")}
+                >
+                  Actividad del presupuesto
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActivityDraft((current) => ({ ...current, activityType: "free", budgetItemId: "", activity: "", unit: "", quantityToday: "" }))}
+                  className={"focus-ring rounded-md border px-4 py-3 text-sm font-black " + (activityDraft.activityType === "free" ? "border-dac-primary bg-dac-primary text-white" : "border-dac-primary/20 text-dac-primary hover:bg-dac-secondary/10")}
+                >
+                  Actividad libre
+                </button>
+              </div>
+
+              {activityDraft.activityType === "budget" && (
+                <div className="sm:col-span-2">
                 <Field label="Buscar actividad del presupuesto" value={activitySearch} placeholder="Item, descripcion, capitulo o subcapitulo" onChange={setActivitySearch} />
                 <div className="mt-3 grid gap-2">
                   {searchedBudgetItems.map((item) => {
@@ -407,8 +543,9 @@ export function DailyReportWizard({ projectName }: { projectName: string }) {
                   })}
                 </div>
               </div>
+              )}
 
-              {selectedBudgetItem && (
+              {activityDraft.activityType === "budget" && selectedBudgetItem && (
                 <div className="grid gap-3 rounded-lg bg-dac-primary/[0.04] p-4 sm:col-span-2 sm:grid-cols-3">
                   <Info label="ITEM" value={selectedBudgetItem.item} />
                   <Info label="DESCRIPCION" value={selectedBudgetItem.description} />
@@ -425,7 +562,14 @@ export function DailyReportWizard({ projectName }: { projectName: string }) {
                 </div>
               )}
 
-              <Field label="Cantidad ejecutada hoy" value={activityDraft.quantityToday} placeholder="48" onChange={(value) => setActivityDraft((current) => ({ ...current, quantityToday: value }))} />
+              {activityDraft.activityType === "budget" ? (
+                <Field label="Cantidad ejecutada hoy" value={activityDraft.quantityToday} placeholder="48" onChange={(value) => setActivityDraft((current) => ({ ...current, quantityToday: value }))} />
+              ) : (
+                <>
+                  <Field label="Nombre de la actividad libre" value={activityDraft.freeActivityName} placeholder="Cimbrada de apartamentos" onChange={(value) => setActivityDraft((current) => ({ ...current, freeActivityName: value }))} />
+                  <TextArea label="Descripcion" value={activityDraft.freeActivityDescription} placeholder="Detalle de la actividad no presupuestal ejecutada o gestionada durante la jornada." onChange={(value) => setActivityDraft((current) => ({ ...current, freeActivityDescription: value }))} className="sm:col-span-2" />
+                </>
+              )}
               <Field label="Frente de trabajo" value={activityDraft.workFront} placeholder="Torre 3 - Piso 5" onChange={(value) => setActivityDraft((current) => ({ ...current, workFront: value }))} />
               <Field label="Responsable" value={activityDraft.owner} placeholder="Hernan Aristizabal" onChange={(value) => setActivityDraft((current) => ({ ...current, owner: value }))} />
               <Field label="Hora inicio" type="time" value={activityDraft.startTime} onChange={(value) => setActivityDraft((current) => ({ ...current, startTime: value }))} />
@@ -541,7 +685,7 @@ export function DailyReportWizard({ projectName }: { projectName: string }) {
         {currentStep === 7 && (
           <div className="grid gap-5">
             <Field label="Firma del residente simulada" value={report.signature} placeholder="Hernan Aristizabal" onChange={(value) => updateReport("signature", value)} />
-            <Summary report={report} activities={draftActivities} commitments={draftCommitments} photosCount={currentPhotos.length} executiveSummary={executiveSummary} />
+            <Summary report={report} workers={workers} materialsUsed={materialsUsed} activities={draftActivities} commitments={draftCommitments} photosCount={currentPhotos.length} executiveSummary={executiveSummary} />
           </div>
         )}
       </div>
@@ -607,8 +751,11 @@ function formatCurrency(value: number) {
 
 function getEmptyActivityDraft(): ActivityDraft {
   return {
+    activityType: "budget",
     budgetItemId: "",
     activity: "",
+    freeActivityName: "",
+    freeActivityDescription: "",
     unit: "",
     quantityToday: "",
     observation: "",
@@ -624,6 +771,50 @@ function getEmptyActivityDraft(): ActivityDraft {
   };
 }
 
+function getEmptyWorkerDraft(): WorkerDraft {
+  return {
+    id: "",
+    name: "",
+    role: "",
+    company: "",
+    observation: ""
+  };
+}
+
+function getEmptyMaterialDraft(): MaterialUsedDraft {
+  return {
+    id: "",
+    material: "",
+    unit: "",
+    quantity: "",
+    observation: ""
+  };
+}
+
+function createClientId(prefix: string) {
+  return prefix + "-" + Date.now() + "-" + Math.random().toString(16).slice(2);
+}
+
+function serializePersonnel(peopleCount: string, workers: WorkerDraft[]) {
+  return JSON.stringify({
+    type: "dac-personnel-v1",
+    totalPeople: Number(peopleCount || workers.length || 0),
+    workers: workers.map(({ name, role, company, observation }) => ({ name, role, company, observation }))
+  });
+}
+
+function serializeMaterialsUsed(materialsUsed: MaterialUsedDraft[]) {
+  return JSON.stringify({
+    type: "dac-materials-used-v1",
+    items: materialsUsed.map(({ material, unit, quantity, observation }) => ({
+      material,
+      unit,
+      quantity: Number(quantity || 0),
+      observation
+    }))
+  });
+}
+
 function getLocalDateISO() {
   const now = new Date();
   const year = now.getFullYear();
@@ -632,7 +823,7 @@ function getLocalDateISO() {
   return year + "-" + month + "-" + day;
 }
 
-function ItemList({ items, empty }: { items: Array<{ title: string; meta: string; detail?: string }>; empty: string }) {
+function ItemList({ items, empty, onRemove }: { items: Array<{ title: string; meta: string; detail?: string; id?: string }>; empty: string; onRemove?: (id: string) => void }) {
   if (items.length === 0) {
     return <p className="rounded-lg border border-dac-primary/10 p-4 text-sm font-semibold text-dac-text/60">{empty}</p>;
   }
@@ -641,7 +832,14 @@ function ItemList({ items, empty }: { items: Array<{ title: string; meta: string
     <div className="grid gap-3">
       {items.map((item, index) => (
         <article key={item.title + index} className="rounded-lg border border-dac-primary/10 p-4">
-          <p className="font-black text-dac-primary">{item.title}</p>
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+            <p className="font-black text-dac-primary">{item.title}</p>
+            {onRemove && item.id && (
+              <button type="button" onClick={() => onRemove(item.id ?? "")} className="focus-ring rounded-md border border-dac-alert px-3 py-1 text-xs font-bold text-dac-alert hover:bg-dac-alert hover:text-white">
+                Eliminar
+              </button>
+            )}
+          </div>
           <p className="mt-1 text-sm font-semibold text-dac-alert">{item.meta}</p>
           {item.detail && <p className="mt-2 text-sm text-dac-text/70">{item.detail}</p>}
         </article>
@@ -652,26 +850,32 @@ function ItemList({ items, empty }: { items: Array<{ title: string; meta: string
 
 function Summary({
   report,
+  workers,
+  materialsUsed,
   activities,
   commitments,
   photosCount,
   executiveSummary
 }: {
   report: ReportData;
-  activities: Array<{ activity: string; quantity: number; unit: string; observation: string }>;
+  workers: WorkerDraft[];
+  materialsUsed: MaterialUsedDraft[];
+  activities: DailyActivity[];
   commitments: Array<{ description: string; owner: string; priority: string; status: string; dueDate: string }>;
   photosCount: number;
   executiveSummary: { activities: number; photos: number; commitmentsPending: number; progress: number };
 }) {
+  const peopleCount = Number(report.peopleCount || workers.length || 0);
+  const budgetActivities = activities.filter((activity) => Boolean(activity.budgetItemId));
+  const freeActivities = activities.filter((activity) => !activity.budgetItemId);
   const general = [
     ["Fecha", report.date],
     ["Hora", report.time],
     ["Clima", report.weather],
-    ["Personal administrativo", report.administrativeStaff],
-    ["Personal operativo", report.operativeStaff],
-    ["Contratistas", report.contractors],
+    ["Personas en obra", peopleCount > 0 ? String(peopleCount) : ""],
+    ["Trabajadores listados", String(workers.length)],
     ["Equipos", report.equipment],
-    ["Material recibido", report.material],
+    ["Material utilizado", String(materialsUsed.length)],
     ["Observaciones", report.observations],
     ["Problemas", report.problems],
     ["Acciones tomadas", report.actions],
@@ -693,8 +897,16 @@ function Summary({
       </dl>
       <div className="mt-5 grid gap-4 lg:grid-cols-2">
         <div>
-          <h4 className="font-black text-dac-primary">Actividades ejecutadas</h4>
-          <ItemList empty="Sin actividades." items={activities.map((item) => ({ title: item.activity, meta: item.quantity + " " + item.unit, detail: item.observation }))} />
+          <h4 className="font-black text-dac-primary">Actividades presupuestales</h4>
+          <ItemList empty="Sin actividades presupuestales." items={budgetActivities.map((item) => ({ title: item.activity, meta: item.quantity + " " + item.unit, detail: item.observation }))} />
+          <h4 className="mt-4 font-black text-dac-primary">Actividades libres</h4>
+          <ItemList empty="Sin actividades libres." items={freeActivities.map((item) => ({ title: item.activity, meta: "Actividad informativa", detail: item.observation }))} />
+        </div>
+        <div>
+          <h4 className="font-black text-dac-primary">Personal y material utilizado</h4>
+          <ItemList empty="Sin trabajadores listados." items={workers.map((worker) => ({ title: worker.name, meta: [worker.role, worker.company].filter(Boolean).join(" - "), detail: worker.observation }))} />
+          <h4 className="mt-4 font-black text-dac-primary">Material utilizado</h4>
+          <ItemList empty="Sin materiales utilizados." items={materialsUsed.map((material) => ({ title: material.material, meta: material.quantity + " " + material.unit, detail: material.observation }))} />
         </div>
         <div>
           <h4 className="font-black text-dac-primary">Compromisos</h4>

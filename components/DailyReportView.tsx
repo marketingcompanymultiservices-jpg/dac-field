@@ -16,16 +16,30 @@ type DailyReportViewProps = {
 
 const numberFormatter = new Intl.NumberFormat("es-CO");
 
+type ParsedPersonnel = {
+  totalPeople: number;
+  workers: Array<{ name: string; role: string; company?: string; observation?: string }>;
+  legacy: Array<[string, string]>;
+};
+
+type ParsedMaterialsUsed = {
+  items: Array<{ material: string; unit: string; quantity: number; observation?: string }>;
+};
+
 export function DailyReportView({ project, report, activities, commitments, photos }: DailyReportViewProps) {
   const [hydratedPhotos, setHydratedPhotos] = useState<Array<{ photo: DailyPhoto; dataUrl: string }>>([]);
   const reportActivities = activities.filter((activity) => activity.dailyReportId === report.id || (!activity.dailyReportId && activity.date === report.date));
+  const budgetActivities = reportActivities.filter((activity) => Boolean(activity.budgetItemId));
+  const freeActivities = reportActivities.filter((activity) => !activity.budgetItemId);
   const reportCommitments = commitments.filter((commitment) => {
     if (commitment.createdAt) return commitment.createdAt.slice(0, 10) === report.date;
     return commitment.dueDate === report.date || commitment.origin === "Registro Diario";
   });
   const reportPhotos = photos.filter((photo) => photo.dailyReportId === report.id || photo.reportId === report.id || (!photo.dailyReportId && !photo.reportId && photo.date === report.date));
   const totalPhotos = reportPhotos.length;
-  const summary = buildSummary(reportActivities, reportCommitments.length, totalPhotos);
+  const personnel = parsePersonnel(report);
+  const materialsUsed = parseMaterialsUsed(report.material);
+  const summary = buildSummary(personnel.totalPeople, budgetActivities.length, freeActivities.length, materialsUsed.items.length, reportCommitments.length, totalPhotos);
 
   useEffect(() => {
     let active = true;
@@ -76,71 +90,44 @@ export function DailyReportView({ project, report, activities, commitments, phot
       </ReportSection>
 
       <ReportSection title="Personal en obra">
-        <InfoGrid
-          items={[
-            ["Personal administrativo", report.administrativeStaff ?? ""],
-            ["Personal operativo", report.operativeStaff ?? ""],
-            ["Contratistas", report.contractors ?? ""]
-          ]}
-        />
+        <InfoGrid items={[["Numero total de personas", personnel.totalPeople > 0 ? numberFormatter.format(personnel.totalPeople) : "Sin registrar"]]} />
+        {personnel.workers.length > 0 && (
+          <div className="mt-4 grid gap-3 sm:grid-cols-2">
+            {personnel.workers.map((worker, index) => (
+              <article key={worker.name + index} className="min-w-0 rounded-md border border-dac-primary/10 bg-dac-primary/[0.03] p-3">
+                <p className="break-words text-sm font-black text-dac-primary">{worker.name}</p>
+                <p className="mt-1 break-words text-sm font-semibold text-dac-text/70">{[worker.role, worker.company].filter(Boolean).join(" - ") || "Sin cargo"}</p>
+                {worker.observation && <p className="mt-2 break-words text-sm text-dac-text/70">{worker.observation}</p>}
+              </article>
+            ))}
+          </div>
+        )}
+        {personnel.legacy.length > 0 && <div className="mt-4"><InfoGrid items={personnel.legacy} /></div>}
       </ReportSection>
 
       <ReportSection title="Equipos y materiales">
-        <InfoGrid
-          items={[
-            ["Equipos utilizados", report.equipment ?? ""],
-            ["Materiales recibidos", report.material ?? ""]
-          ]}
-        />
+        <InfoGrid items={[["Equipos utilizados", report.equipment ?? ""]]} />
+        <div className="mt-4">
+          <h3 className="text-sm font-black uppercase text-dac-primary">Material utilizado</h3>
+          <div className="mt-3 grid gap-3 sm:grid-cols-2">
+            {materialsUsed.items.map((item, index) => (
+              <article key={item.material + index} className="min-w-0 rounded-md border border-dac-primary/10 bg-dac-primary/[0.03] p-3">
+                <p className="break-words text-sm font-black text-dac-primary">{item.material}</p>
+                <p className="mt-1 break-words text-sm font-semibold text-dac-alert">{numberFormatter.format(item.quantity)} {item.unit}</p>
+                {item.observation && <p className="mt-2 break-words text-sm text-dac-text/70">{item.observation}</p>}
+              </article>
+            ))}
+            {materialsUsed.items.length === 0 && <p className="rounded-md border border-dac-primary/10 p-4 text-sm font-semibold text-dac-text/60">Sin material utilizado registrado.</p>}
+          </div>
+        </div>
       </ReportSection>
 
-      <ReportSection title="Actividades ejecutadas">
-        <div className="grid gap-3 md:hidden">
-          {reportActivities.map((activity) => (
-            <article key={activity.id} className="min-w-0 rounded-md border border-dac-primary/10 bg-dac-primary/[0.03] p-3">
-              <p className="break-words text-sm font-black text-dac-primary">{activity.activity}</p>
-              <dl className="mt-3 grid gap-2 text-sm">
-                <MobileInfo label="Cantidad" value={numberFormatter.format(activity.quantity) + " " + activity.unit} />
-                <MobileInfo label="Frente" value={activity.workFront || "Sin frente"} />
-                <MobileInfo label="Responsable" value={activity.owner || "Sin responsable"} />
-                <MobileInfo label="Horario" value={(activity.startTime || activity.time) + " - " + (activity.endTime || "Sin cierre")} />
-                <MobileInfo label="Observacion" value={activity.observation || "Sin observacion."} />
-              </dl>
-            </article>
-          ))}
-          {reportActivities.length === 0 && (
-            <p className="rounded-md border border-dac-primary/10 p-4 text-sm font-semibold text-dac-text/60">No hay actividades registradas para esta fecha.</p>
-          )}
-        </div>
+      <ReportSection title="Actividades presupuestales">
+        <ActivityTable activities={budgetActivities} empty="No hay actividades presupuestales registradas para esta fecha." />
+      </ReportSection>
 
-        <div className="hidden md:block">
-          <table className="w-full table-fixed border-collapse text-left">
-            <thead className="bg-dac-primary text-white">
-              <tr>
-                {["Actividad", "Cantidad", "Frente", "Responsable", "Horario", "Observacion"].map((header, index) => (
-                  <th key={header} className={"px-3 py-3 text-xs font-black uppercase " + (index === 0 || index === 5 ? "w-[24%]" : "w-[13%]")}>{header}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {reportActivities.map((activity) => (
-                <tr key={activity.id} className="border-b border-dac-primary/10 last:border-b-0">
-                  <td className="break-words px-3 py-3 text-sm font-bold">{activity.activity}</td>
-                  <td className="break-words px-3 py-3 text-sm font-semibold">{numberFormatter.format(activity.quantity)} {activity.unit}</td>
-                  <td className="break-words px-3 py-3 text-sm font-semibold">{activity.workFront || "Sin frente"}</td>
-                  <td className="break-words px-3 py-3 text-sm font-semibold">{activity.owner || "Sin responsable"}</td>
-                  <td className="break-words px-3 py-3 text-sm font-semibold">{activity.startTime || activity.time} - {activity.endTime || "Sin cierre"}</td>
-                  <td className="break-words px-3 py-3 text-sm text-dac-text/75">{activity.observation || "Sin observacion."}</td>
-                </tr>
-              ))}
-              {reportActivities.length === 0 && (
-                <tr>
-                  <td colSpan={6} className="px-3 py-4 text-sm font-semibold text-dac-text/60">No hay actividades registradas para esta fecha.</td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
+      <ReportSection title="Actividades libres">
+        <ActivityTable activities={freeActivities} empty="No hay actividades libres registradas para esta fecha." isFreeActivity />
       </ReportSection>
 
       <ReportSection title="Observaciones">
@@ -206,16 +193,115 @@ function MobileInfo({ label, value }: { label: string; value: string }) {
   );
 }
 
-function buildSummary(activities: DailyActivity[], commitmentsCount: number, photosCount: number) {
-  const uniqueActivities = Array.from(new Set(activities.map((activity) => activity.activity))).slice(0, 4);
-  const activityText = uniqueActivities.length > 0 ? uniqueActivities.join(", ") : "sin actividades registradas";
+function ActivityTable({ activities, empty, isFreeActivity = false }: { activities: DailyActivity[]; empty: string; isFreeActivity?: boolean }) {
+  return (
+    <>
+      <div className="grid gap-3 md:hidden">
+        {activities.map((activity) => (
+          <article key={activity.id} className="min-w-0 rounded-md border border-dac-primary/10 bg-dac-primary/[0.03] p-3">
+            <p className="break-words text-sm font-black text-dac-primary">{activity.activity}</p>
+            <dl className="mt-3 grid gap-2 text-sm">
+              {!isFreeActivity && <MobileInfo label="Cantidad" value={numberFormatter.format(activity.quantity) + " " + activity.unit} />}
+              <MobileInfo label="Frente" value={activity.workFront || "Sin frente"} />
+              <MobileInfo label="Responsable" value={activity.owner || "Sin responsable"} />
+              <MobileInfo label="Horario" value={(activity.startTime || activity.time) + " - " + (activity.endTime || "Sin cierre")} />
+              <MobileInfo label="Observacion" value={activity.observation || "Sin observacion."} />
+            </dl>
+          </article>
+        ))}
+        {activities.length === 0 && (
+          <p className="rounded-md border border-dac-primary/10 p-4 text-sm font-semibold text-dac-text/60">{empty}</p>
+        )}
+      </div>
+
+      <div className="hidden md:block">
+        <table className="w-full table-fixed border-collapse text-left">
+          <thead className="bg-dac-primary text-white">
+            <tr>
+              {(isFreeActivity ? ["Actividad", "Frente", "Responsable", "Horario", "Observacion"] : ["Actividad", "Cantidad", "Frente", "Responsable", "Horario", "Observacion"]).map((header, index) => (
+                <th key={header} className={"px-3 py-3 text-xs font-black uppercase " + (index === 0 || header === "Observacion" ? "w-[28%]" : "w-[14%]")}>{header}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {activities.map((activity) => (
+              <tr key={activity.id} className="border-b border-dac-primary/10 last:border-b-0">
+                <td className="break-words px-3 py-3 text-sm font-bold">{activity.activity}</td>
+                {!isFreeActivity && <td className="break-words px-3 py-3 text-sm font-semibold">{numberFormatter.format(activity.quantity)} {activity.unit}</td>}
+                <td className="break-words px-3 py-3 text-sm font-semibold">{activity.workFront || "Sin frente"}</td>
+                <td className="break-words px-3 py-3 text-sm font-semibold">{activity.owner || "Sin responsable"}</td>
+                <td className="break-words px-3 py-3 text-sm font-semibold">{activity.startTime || activity.time} - {activity.endTime || "Sin cierre"}</td>
+                <td className="break-words px-3 py-3 text-sm text-dac-text/75">{activity.observation || "Sin observacion."}</td>
+              </tr>
+            ))}
+            {activities.length === 0 && (
+              <tr>
+                <td colSpan={isFreeActivity ? 5 : 6} className="px-3 py-4 text-sm font-semibold text-dac-text/60">{empty}</td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+    </>
+  );
+}
+
+function parsePersonnel(report: DailyReportEntry): ParsedPersonnel {
+  const legacyEntries: Array<[string, string]> = [
+    ["Personal administrativo", report.administrativeStaff ?? ""],
+    ["Personal operativo", report.operativeStaff ?? ""],
+    ["Contratistas", report.contractors ?? ""]
+  ].filter((entry): entry is [string, string] => Boolean(entry[1]));
+  const fallback: ParsedPersonnel = {
+    totalPeople: 0,
+    workers: [],
+    legacy: legacyEntries
+  };
+
+  try {
+    const payload = JSON.parse(report.administrativeStaff || "");
+    if (payload?.type !== "dac-personnel-v1") return fallback;
+    return {
+      totalPeople: Number(payload.totalPeople || payload.workers?.length || 0),
+      workers: Array.isArray(payload.workers) ? payload.workers : [],
+      legacy: []
+    };
+  } catch {
+    return fallback;
+  }
+}
+
+function parseMaterialsUsed(value?: string): ParsedMaterialsUsed {
+  try {
+    const payload = JSON.parse(value || "");
+    if (payload?.type !== "dac-materials-used-v1") return { items: [] };
+    return {
+      items: Array.isArray(payload.items)
+        ? payload.items.map((item: { material?: string; unit?: string; quantity?: number; observation?: string }) => ({
+            material: item.material ?? "",
+            unit: item.unit ?? "",
+            quantity: Number(item.quantity || 0),
+            observation: item.observation
+          }))
+        : []
+    };
+  } catch {
+    return { items: [] };
+  }
+}
+
+function buildSummary(peopleCount: number, budgetActivitiesCount: number, freeActivitiesCount: number, materialsCount: number, commitmentsCount: number, photosCount: number) {
+  const peopleText = peopleCount > 0 ? "Durante la jornada laboraron " + numberFormatter.format(peopleCount) + " personas. " : "";
 
   return (
-    "Durante la jornada se ejecutaron actividades de " +
-    activityText +
-    ", con un total de " +
-    activities.length +
-    " registros de avance. Se reportaron " +
+    peopleText +
+    "Se registraron " +
+    budgetActivitiesCount +
+    " actividades presupuestales y " +
+    freeActivitiesCount +
+    " actividades libres. Se reportaron " +
+    materialsCount +
+    " materiales utilizados, " +
     commitmentsCount +
     " compromisos y " +
     photosCount +
