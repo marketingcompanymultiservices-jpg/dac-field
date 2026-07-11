@@ -1,7 +1,7 @@
 import { supabaseClient } from "@/lib/supabaseClient";
 import type { DocumentStatus, ProjectDocument } from "@/types";
 
-export const DOCUMENTS_BUCKET = process.env.NEXT_PUBLIC_DOCUMENTS_BUCKET || "dac-project-documents";
+export const DOCUMENTS_BUCKET = "documents";
 
 type DocumentRow = {
   id: string;
@@ -148,6 +148,40 @@ export async function createProjectDocumentDownloadUrl(document: ProjectDocument
     authenticatedUser: document.uploadedBy ?? document.user
   });
   return data.signedUrl;
+}
+
+export async function deleteProjectDocumentFromSupabase(document: ProjectDocument) {
+  if (!supabaseClient) throw new Error("Supabase no esta configurado.");
+  if (!document.storagePath) throw new Error("El documento no tiene ruta de almacenamiento.");
+
+  const { data: userData } = await supabaseClient.auth.getUser();
+  const deleteContext = {
+    bucket: DOCUMENTS_BUCKET,
+    storagePath: document.storagePath,
+    fileName: document.fileName ?? document.name,
+    projectId: document.projectId ?? "",
+    authenticatedUser: userData.user?.email ?? document.uploadedBy ?? document.user
+  };
+
+  console.info("[DAC Documents] Eliminando documento de Supabase Storage", deleteContext);
+
+  const storageResponse = await supabaseClient.storage
+    .from(DOCUMENTS_BUCKET)
+    .remove([document.storagePath]);
+
+  console.info("[DAC Documents] Respuesta completa de eliminacion en Supabase Storage", {
+    ...deleteContext,
+    response: storageResponse
+  });
+
+  if (storageResponse.error) throw buildDocumentError("No fue posible eliminar el archivo en Supabase Storage.", storageResponse.error, deleteContext);
+
+  const { error: metadataError } = await supabaseClient
+    .from("project_documents")
+    .delete()
+    .eq("id", document.id);
+
+  if (metadataError) throw buildDocumentError("El archivo fue eliminado, pero no fue posible eliminar los metadatos del documento.", metadataError, deleteContext);
 }
 
 async function inspectDocumentsBucket(bucketName: string) {

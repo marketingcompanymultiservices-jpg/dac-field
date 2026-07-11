@@ -7,13 +7,13 @@ import { DocumentForm } from "@/components/DocumentForm";
 import { DocumentSummary } from "@/components/DocumentSummary";
 import { useAuth } from "@/components/AuthProvider";
 import { useProjectStore } from "@/lib/project-store";
-import { createProjectDocumentDownloadUrl, loadProjectDocumentsFromSupabase, uploadProjectDocumentToSupabase } from "@/lib/supabase/documents";
+import { createProjectDocumentDownloadUrl, deleteProjectDocumentFromSupabase, loadProjectDocumentsFromSupabase, uploadProjectDocumentToSupabase } from "@/lib/supabase/documents";
 import { isSupabaseConfigured } from "@/lib/supabaseClient";
 import type { AdminPermissionModule, ProjectDocument } from "@/types";
 
 export function DocumentsBoard({ folders }: { folders: string[] }) {
   const { profile, user } = useAuth();
-  const { documents, addDocument, setProjectDocuments, adminRoles, currentUser, project } = useProjectStore();
+  const { documents, addDocument, removeDocument, setProjectDocuments, adminRoles, currentUser, project } = useProjectStore();
   const [activeFolder, setActiveFolder] = useState("Todas");
   const [activeFilter, setActiveFilter] = useState<DocumentFilter>("Todos");
   const [search, setSearch] = useState("");
@@ -24,6 +24,7 @@ export function DocumentsBoard({ folders }: { folders: string[] }) {
   const canCreateDocuments = hasPermission("Documentos", "Crear", roleConfig, roleName);
   const canExportDocuments = hasPermission("Documentos", "Exportar", roleConfig, roleName);
   const canPrintDocuments = hasPermission("Documentos", "Imprimir", roleConfig, roleName);
+  const canDeleteDocuments = hasPermission("Documentos", "Eliminar", roleConfig, roleName);
 
   const filteredDocuments = useMemo(() => {
     const query = search.trim().toLowerCase();
@@ -86,7 +87,7 @@ export function DocumentsBoard({ folders }: { folders: string[] }) {
     });
 
     addDocument(uploadedDocument);
-    setMessage("Documento cargado correctamente en Supabase Storage.");
+    setMessage("Documento cargado correctamente.");
   }
 
   async function handleDownload(document: ProjectDocument) {
@@ -96,6 +97,20 @@ export function DocumentsBoard({ folders }: { folders: string[] }) {
       window.open(url, "_blank", "noopener,noreferrer");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "No fue posible descargar el documento.");
+    }
+  }
+
+  async function handleDelete(document: ProjectDocument) {
+    if (!canDeleteDocuments) return;
+    const confirmed = window.confirm("Deseas eliminar este documento del expediente?");
+    if (!confirmed) return;
+
+    try {
+      await deleteProjectDocumentFromSupabase(document);
+      removeDocument(document.id);
+      setMessage("Documento eliminado correctamente.");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "No fue posible eliminar el documento.");
     }
   }
 
@@ -180,7 +195,9 @@ export function DocumentsBoard({ folders }: { folders: string[] }) {
                   key={document.id}
                   document={document}
                   canDownload={canExportDocuments}
+                  canDelete={canDeleteDocuments}
                   onDownload={() => handleDownload(document)}
+                  onDelete={() => handleDelete(document)}
                 />
               ))
             ) : (
@@ -197,7 +214,7 @@ export function DocumentsBoard({ folders }: { folders: string[] }) {
 
 function hasPermission(
   module: AdminPermissionModule,
-  action: "Crear" | "Exportar" | "Imprimir",
+  action: "Crear" | "Exportar" | "Imprimir" | "Eliminar",
   roleConfig: { permissions: Partial<Record<AdminPermissionModule, Partial<Record<string, boolean>>>> } | undefined,
   roleName: string
 ) {

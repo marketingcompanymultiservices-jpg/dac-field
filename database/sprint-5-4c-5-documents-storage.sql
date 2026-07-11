@@ -1,5 +1,5 @@
 insert into storage.buckets (id, name, public)
-values ('dac-project-documents', 'dac-project-documents', false)
+values ('documents', 'documents', false)
 on conflict (id) do nothing;
 
 create table if not exists public.project_documents (
@@ -109,7 +109,7 @@ on storage.objects
 for select
 to authenticated
 using (
-  bucket_id = 'dac-project-documents'
+  bucket_id = 'documents'
   and public.current_profile_role() in (
     'Administrador',
     'Director Administrativo',
@@ -128,7 +128,7 @@ on storage.objects
 for insert
 to authenticated
 with check (
-  bucket_id = 'dac-project-documents'
+  bucket_id = 'documents'
   and public.current_profile_role() in (
     'Administrador',
     'Director Administrativo',
@@ -144,7 +144,7 @@ on storage.objects
 for update
 to authenticated
 using (
-  bucket_id = 'dac-project-documents'
+  bucket_id = 'documents'
   and public.current_profile_role() in (
     'Administrador',
     'Director Administrativo',
@@ -154,7 +154,7 @@ using (
   )
 )
 with check (
-  bucket_id = 'dac-project-documents'
+  bucket_id = 'documents'
   and public.current_profile_role() in (
     'Administrador',
     'Director Administrativo',
@@ -170,6 +170,6 @@ on storage.objects
 for delete
 to authenticated
 using (
-  bucket_id = 'dac-project-documents'
+  bucket_id = 'documents'
   and public.current_profile_role() in ('Administrador', 'Director Administrativo')
 );

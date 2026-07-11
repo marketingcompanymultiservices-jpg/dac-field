@@ -3,11 +3,15 @@ import type { ProjectDocument } from "@/types";
 export function DocumentCard({
   document,
   canDownload = false,
-  onDownload
+  canDelete = false,
+  onDownload,
+  onDelete
 }: {
   document: ProjectDocument;
   canDownload?: boolean;
+  canDelete?: boolean;
   onDownload?: () => void;
+  onDelete?: () => void;
 }) {
   return (
     <article className="rounded-lg border border-dac-primary/15 bg-white p-4 shadow-sm sm:p-5">
@@ -44,6 +48,14 @@ export function DocumentCard({
           className="focus-ring rounded-md bg-dac-primary px-4 py-2 text-sm font-black text-white hover:bg-dac-secondary disabled:cursor-not-allowed disabled:bg-dac-primary/35"
         >
           Descargar
+        </button>
+        <button
+          type="button"
+          onClick={onDelete}
+          disabled={!canDelete || !document.storagePath}
+          className="focus-ring rounded-md border border-dac-alert px-4 py-2 text-sm font-black text-dac-alert hover:bg-dac-alert hover:text-white disabled:cursor-not-allowed disabled:border-dac-primary/20 disabled:text-dac-text/35 disabled:hover:bg-white"
+        >
+          Eliminar
         </button>
       </div>
     </article>
