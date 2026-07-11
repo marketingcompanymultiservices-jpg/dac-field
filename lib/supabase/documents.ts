@@ -70,22 +70,6 @@ export async function uploadProjectDocumentToSupabase(input: UploadProjectDocume
 
   console.info("[DAC Documents] Bucket utilizado para carga documental", uploadContext);
 
-  const bucketDiagnostic = await inspectDocumentsBucket(DOCUMENTS_BUCKET);
-  console.info("[DAC Documents] Diagnostico Supabase Storage", {
-    ...uploadContext,
-    bucketDiagnostic
-  });
-
-  if (bucketDiagnostic.status === "missing") {
-    throw new Error(
-      "El bucket requerido para documentos no existe en Supabase Storage. Debe existir: " +
-        DOCUMENTS_BUCKET +
-        ". Buckets disponibles: " +
-        (bucketDiagnostic.availableBuckets.length > 0 ? bucketDiagnostic.availableBuckets.join(", ") : "sin acceso o sin buckets visibles") +
-        "."
-    );
-  }
-
   const uploadResponse = await supabaseClient.storage
     .from(DOCUMENTS_BUCKET)
     .upload(storagePath, input.file, {
@@ -182,30 +166,6 @@ export async function deleteProjectDocumentFromSupabase(document: ProjectDocumen
     .eq("id", document.id);
 
   if (metadataError) throw buildDocumentError("El archivo fue eliminado, pero no fue posible eliminar los metadatos del documento.", metadataError, deleteContext);
-}
-
-async function inspectDocumentsBucket(bucketName: string) {
-  if (!supabaseClient) return { status: "unavailable" as const, availableBuckets: [], error: "Supabase no esta configurado." };
-
-  const { data, error } = await supabaseClient.storage.listBuckets();
-  const availableBuckets = (data ?? []).map((bucket) => bucket.name || bucket.id).filter(Boolean);
-
-  if (error) {
-    return {
-      status: "unknown" as const,
-      availableBuckets,
-      error: {
-        message: error.message,
-        name: error.name
-      }
-    };
-  }
-
-  return {
-    status: availableBuckets.includes(bucketName) ? ("found" as const) : ("missing" as const),
-    availableBuckets,
-    error: null
-  };
 }
 
 function mapDocumentRow(row: DocumentRow): ProjectDocument {
