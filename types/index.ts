@@ -82,6 +82,10 @@ export type BudgetProgressItem = {
   progress: number;
   executedQuantity?: number;
   pendingQuantity?: number;
+  executedValue?: number;
+  pendingValue?: number;
+  physicalProgressPercent?: number;
+  financialProgressPercent?: number;
 };
 
 export type ManualProgressChange = {
@@ -116,6 +120,7 @@ export type BudgetItem = {
   id?: string;
   item: string;
   importOrder?: number;
+  budgetType?: string;
   description: string;
   unit: string;
   quantity: number;
@@ -125,6 +130,10 @@ export type BudgetItem = {
   subchapter: string;
   initialProgress?: number;
   executedQuantity?: number;
+  executedValue?: number;
+  pendingValue?: number;
+  physicalProgressPercent?: number;
+  financialProgressPercent?: number;
 };
 
 export type BudgetVersion = {
@@ -143,6 +152,20 @@ export type InitialSurveyMetadata = {
   executedValue: number;
   pendingValue: number;
   initialProgress: number;
+};
+
+export type InitialSurveyItem = {
+  id?: string;
+  projectId: string;
+  budgetItemId?: string;
+  item: string;
+  importOrder?: number;
+  executedQuantity: number;
+  observation?: string;
+  createdBy?: string;
+  updatedBy?: string;
+  createdAt?: string;
+  updatedAt?: string;
 };
 
 export type ActivityPlanning = {

@@ -19,8 +19,10 @@ import { buildProgrammedRows, calculateProgrammedSummary } from "@/lib/programme
 import { buildSmartAlerts } from "@/lib/alerts";
 import { buildActivityProductivity, calculateProductivitySummary } from "@/lib/productivity";
 import { clearAppState, loadAppState, saveAppState } from "@/lib/storage";
+import { recalculateProjectBudgetExecution } from "@/lib/supabase/progress-engine";
 import { loadProjectBudgetFromSupabase, replaceProjectBudgetInSupabase, updateProjectBudgetItemInSupabase } from "@/lib/supabase/budget";
 import { loadDailyReportBundleFromSupabase, saveDailyReportBundleToSupabase } from "@/lib/supabase/daily-reports";
+import { loadProjectInitialSurveyItems, saveProjectInitialSurveyItems } from "@/lib/supabase/initial-survey";
 import type {
   ActivityPlanning,
   AdminCompany,
@@ -42,6 +44,7 @@ import type {
   DashboardMetric,
   DirectionInspection,
   DirectionInspectionStatus,
+  InitialSurveyItem,
   InitialSurveyMetadata,
   ManualProgressChange,
   Project,
@@ -69,6 +72,7 @@ type ProjectStoreValue = {
   reports: ProjectReport[];
   planningItems: ActivityPlanning[];
   initialSurvey: InitialSurveyMetadata | null;
+  initialSurveyItems: InitialSurveyItem[];
   dashboardMetrics: DashboardMetric[];
   alerts: SmartAlert[];
   progressSummary: ReturnType<typeof calculateProgressSummary>;
@@ -92,7 +96,7 @@ type ProjectStoreValue = {
   updateDailyPhotoDescription: (id: string, description: string) => void;
   updateDailyPhotoDetails: (id: string, details: Pick<DailyPhoto, "description" | "activityId">) => void;
   deleteDailyPhoto: (id: string) => void;
-  saveDailyReport: (report: Omit<DailyReportEntry, "id" | "projectId" | "status">, status: DailyReportEntry["status"]) => Promise<void>;
+  saveDailyReport: (report: Omit<DailyReportEntry, "id" | "projectId" | "status">, status: DailyReportEntry["status"]) => Promise<{ progressConsolidationWarning?: string }>;
   addCommitment: (commitment: Commitment) => void;
   updateCommitmentStatus: (id: string, status: CommitmentStatus) => void;
   addDocument: (document: ProjectDocument) => void;
@@ -103,7 +107,7 @@ type ProjectStoreValue = {
   importBudget: (items: BudgetItem[], version: BudgetVersion) => Promise<void>;
   updateManualProgress: (change: Omit<ManualProgressChange, "id" | "date" | "origin">) => void;
   updateBudgetQuantity: (change: Omit<BudgetQuantityChange, "id" | "date" | "origin">) => void;
-  saveInitialSurvey: (items: BudgetItem[], metadata: InitialSurveyMetadata) => void;
+  saveInitialSurvey: (items: BudgetItem[], metadata: InitialSurveyMetadata, observations?: Record<string, string>) => Promise<{ warning?: string }>;
   upsertActivityPlanning: (planning: Omit<ActivityPlanning, "status">) => void;
   duplicateWeeklyPlanning: (fromWeekStart: string, toWeekStart: string) => void;
   updateAdminCompany: (company: AdminCompany) => void;
@@ -138,6 +142,7 @@ export function ProjectStoreProvider({ children }: { children: ReactNode }) {
   const [directionInspections, setDirectionInspections] = useState<DirectionInspection[]>([]);
   const [planningItems, setPlanningItems] = useState<ActivityPlanning[]>([]);
   const [initialSurvey, setInitialSurvey] = useState<InitialSurveyMetadata | null>(null);
+  const [initialSurveyItems, setInitialSurveyItems] = useState<InitialSurveyItem[]>([]);
   const [systemEvents, setSystemEvents] = useState<TimelineEvent[]>([]);
   const [reports, setReports] = useState<ProjectReport[]>([]);
   const [adminCompany, setAdminCompany] = useState<AdminCompany>(initialAdminCompany);
@@ -302,11 +307,66 @@ export function ProjectStoreProvider({ children }: { children: ReactNode }) {
       throw new Error("El reporte fue enviado, pero no pudo confirmarse su lectura desde Supabase.");
     }
 
+    let progressConsolidationWarning: string | undefined;
+    let consolidatedBudget: Awaited<ReturnType<typeof loadProjectBudgetFromSupabase>> | null = null;
+    try {
+      await recalculateProjectBudgetExecution(projectIdForDailyReports);
+      try {
+        consolidatedBudget = await loadProjectBudgetFromSupabase(projectIdForDailyReports);
+      } catch (error) {
+        const warningMessage =
+          "Registro Diario guardado correctamente y avance consolidado, pero la vista no pudo actualizarse. " +
+          (error instanceof Error ? error.message : "Error desconocido al recargar el presupuesto consolidado.");
+        progressConsolidationWarning = warningMessage;
+        console.error("[DAC Progress Engine] Avance consolidado sin refrescar presupuesto", {
+          projectId: projectIdForDailyReports,
+          reportId,
+          error
+        });
+        setSystemEvents((current) => [
+          {
+            id: "event-progress-engine-refresh-error-" + Date.now(),
+            time: new Date().toTimeString().slice(0, 5),
+            title: "Avance consolidado sin refrescar vista.",
+            description: warningMessage,
+            source: "Sistema"
+          },
+          ...current
+        ]);
+      }
+    } catch (error) {
+      const warningMessage =
+        "Registro Diario guardado correctamente, pero el avance no pudo consolidarse. " +
+        (error instanceof Error ? error.message : "Error desconocido al ejecutar el motor de avance.");
+      progressConsolidationWarning = warningMessage;
+      console.error("[DAC Progress Engine] Registro Diario guardado sin consolidar avance", {
+        projectId: projectIdForDailyReports,
+        reportId,
+        error
+      });
+      setSystemEvents((current) => [
+        {
+          id: "event-progress-engine-error-" + Date.now(),
+          time: new Date().toTimeString().slice(0, 5),
+          title: "Registro Diario guardado sin consolidar avance.",
+          description: warningMessage,
+          source: "Sistema"
+        },
+        ...current
+      ]);
+    }
+
     setShouldPersist(true);
     setDailyReports(visibleReports);
     setActivities(remoteBundle.activities);
     setPhotos(remoteBundle.photos);
     setCommitments(remoteBundle.commitments);
+    if (consolidatedBudget) {
+      setBudgetItems(consolidatedBudget.items);
+      setBudgetVersion(consolidatedBudget.version);
+    }
+
+    return { progressConsolidationWarning };
   }
 
   useEffect(() => {
@@ -328,6 +388,7 @@ export function ProjectStoreProvider({ children }: { children: ReactNode }) {
       setDirectionInspections(storedState.directionInspections ?? []);
       setPlanningItems((storedState.planningItems ?? []).map((item) => ({ ...item, plannedQuantity: item.plannedQuantity ?? 0, status: "Pendiente" })));
       setInitialSurvey(storedState.initialSurvey ?? null);
+      setInitialSurveyItems(storedState.initialSurveyItems ?? []);
       setSystemEvents(storedState.systemEvents ?? []);
       setReports([]);
       setAdminCompany(storedState.adminCompany ?? initialAdminCompany);
@@ -421,6 +482,36 @@ export function ProjectStoreProvider({ children }: { children: ReactNode }) {
     if (!isHydrated) return;
 
     let active = true;
+    async function loadRemoteInitialSurvey() {
+      try {
+        const remoteItems = await loadProjectInitialSurveyItems(projectBase.id);
+        if (!active) return;
+        setInitialSurveyItems(remoteItems);
+      } catch (error) {
+        if (!active) return;
+        setSystemEvents((current) => [
+          {
+            id: "event-initial-survey-load-error-" + Date.now(),
+            time: new Date().toTimeString().slice(0, 5),
+            title: "No fue posible cargar levantamiento inicial desde Supabase.",
+            description: error instanceof Error ? error.message : "Error desconocido al consultar levantamiento inicial.",
+            source: "Sistema"
+          },
+          ...current
+        ]);
+      }
+    }
+
+    loadRemoteInitialSurvey();
+    return () => {
+      active = false;
+    };
+  }, [isHydrated, projectBase.id]);
+
+  useEffect(() => {
+    if (!isHydrated) return;
+
+    let active = true;
     async function loadRemoteDailyReports() {
       try {
         const projectIdForDailyReports = normalizeProjectId(projectBase.id);
@@ -482,6 +573,7 @@ export function ProjectStoreProvider({ children }: { children: ReactNode }) {
       directionInspections,
       planningItems,
       initialSurvey,
+      initialSurveyItems,
       systemEvents,
       reports,
       adminCompany,
@@ -494,7 +586,7 @@ export function ProjectStoreProvider({ children }: { children: ReactNode }) {
     });
     setHasLocalData(true);
     setLastSavedAt(savedAt);
-  }, [activities, adminCompany, adminRoles, adminUsers, alertOverrides, budgetItems, budgetQuantityChanges, budgetVersion, commitments, dailyReports, directionInspections, documents, initialSurvey, isHydrated, knownAlertIds, manualProgressChanges, photos, planningItems, progressItems, project, reports, shouldPersist, systemEvents, timeline]);
+  }, [activities, adminCompany, adminRoles, adminUsers, alertOverrides, budgetItems, budgetQuantityChanges, budgetVersion, commitments, dailyReports, directionInspections, documents, initialSurvey, initialSurveyItems, isHydrated, knownAlertIds, manualProgressChanges, photos, planningItems, progressItems, project, reports, shouldPersist, systemEvents, timeline]);
 
   function clearProductionSessionData(requesterRole?: string) {
     if (requesterRole !== "Administrador") {
@@ -520,6 +612,7 @@ export function ProjectStoreProvider({ children }: { children: ReactNode }) {
     setDirectionInspections([]);
     setPlanningItems([]);
     setInitialSurvey(null);
+    setInitialSurveyItems([]);
     setSystemEvents([]);
     setReports([]);
     setAdminCompany(initialAdminCompany);
@@ -548,6 +641,7 @@ export function ProjectStoreProvider({ children }: { children: ReactNode }) {
     progressItems,
     planningItems,
     initialSurvey,
+    initialSurveyItems,
     timeline,
     reports,
     alerts,
@@ -775,31 +869,54 @@ export function ProjectStoreProvider({ children }: { children: ReactNode }) {
         ...current
       ]);
     },
-    saveInitialSurvey(items, metadata) {
+    async saveInitialSurvey(items, metadata, observations = {}) {
       setShouldPersist(true);
-      Promise.all(
-        items.map((item) =>
-          updateProjectBudgetItemInSupabase(project.id, item.item, {
-            initialProgress: item.initialProgress ?? 0,
-            executedQuantity: item.executedQuantity ?? item.quantity * ((item.initialProgress ?? 0) / 100)
-          })
-        )
-      )
-        .then((remoteItems) => {
-          setBudgetItems((current) => current.map((item) => remoteItems.find((remoteItem) => remoteItem.item === item.item) ?? item));
-        })
-        .catch((error) => {
+      const savedSurveyItems = await saveProjectInitialSurveyItems(project.id, items, observations);
+      if (savedSurveyItems.length === 0) {
+        throw new Error("No se guardo ningun registro del levantamiento inicial. El avance no fue recalculado.");
+      }
+      setInitialSurveyItems(savedSurveyItems);
+
+      let warning: string | undefined;
+      try {
+        await recalculateProjectBudgetExecution(project.id);
+        try {
+          const consolidatedBudget = await loadProjectBudgetFromSupabase(project.id);
+          setBudgetItems(consolidatedBudget.items);
+          setBudgetVersion(consolidatedBudget.version);
+        } catch (error) {
+          const warningMessage =
+            "Levantamiento inicial guardado y avance consolidado, pero la vista no pudo actualizarse. " +
+            (error instanceof Error ? error.message : "Error desconocido al recargar presupuesto consolidado.");
+          warning = warningMessage;
           setSystemEvents((current) => [
             {
-              id: "event-initial-survey-supabase-error-" + Date.now(),
+              id: "event-initial-survey-budget-refresh-error-" + Date.now(),
               time: new Date().toTimeString().slice(0, 5),
-              title: "No fue posible sincronizar levantamiento inicial en Supabase.",
-              description: error instanceof Error ? error.message : "Error desconocido al actualizar presupuesto.",
+              title: "Levantamiento consolidado sin refrescar vista.",
+              description: warningMessage,
               source: "Sistema"
             },
             ...current
           ]);
-        });
+        }
+      } catch (error) {
+        const warningMessage =
+          "Levantamiento inicial guardado, pero el avance no pudo consolidarse. " +
+          (error instanceof Error ? error.message : "Error desconocido al ejecutar el motor de avance.");
+        warning = warningMessage;
+        setSystemEvents((current) => [
+          {
+            id: "event-initial-survey-progress-engine-error-" + Date.now(),
+            time: new Date().toTimeString().slice(0, 5),
+            title: "Levantamiento guardado sin consolidar avance.",
+            description: warningMessage,
+            source: "Sistema"
+          },
+          ...current
+        ]);
+      }
+
       setInitialSurvey(metadata);
       setSystemEvents((current) => [
         {
@@ -811,6 +928,7 @@ export function ProjectStoreProvider({ children }: { children: ReactNode }) {
         },
         ...current
       ]);
+      return { warning };
     },
     upsertActivityPlanning(planning) {
       setShouldPersist(true);

@@ -16,6 +16,7 @@ import type {
   Project,
   ProjectDocument,
   ProjectReport,
+  InitialSurveyItem,
   InitialSurveyMetadata,
   ManualProgressChange,
   TimelineEvent
@@ -39,6 +40,7 @@ export type PersistedAppState = {
   budgetVersion?: BudgetVersion | null;
   planningItems?: ActivityPlanning[];
   initialSurvey?: InitialSurveyMetadata | null;
+  initialSurveyItems?: InitialSurveyItem[];
   systemEvents?: TimelineEvent[];
   adminCompany?: AdminCompany;
   adminUsers?: AdminUser[];

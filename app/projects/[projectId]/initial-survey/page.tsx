@@ -18,22 +18,33 @@ const currencyFormatter = new Intl.NumberFormat("es-CO", {
 const numberFormatter = new Intl.NumberFormat("es-CO");
 
 export default function InitialSurveyPage() {
-  const { project, budgetItems, initialSurvey, saveInitialSurvey } = useProjectStore();
+  const { project, budgetItems, initialSurvey, initialSurveyItems, saveInitialSurvey } = useProjectStore();
   const [draft, setDraft] = useState<Record<string, string>>({});
+  const [observationDraft, setObservationDraft] = useState<Record<string, string>>({});
   const [filter, setFilter] = useState<SurveyFilter>("Todas");
   const [search, setSearch] = useState("");
   const [message, setMessage] = useState("");
+  const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
     setDraft(
       Object.fromEntries(
         budgetItems.map((item) => {
-          const executed = item.quantity * ((item.initialProgress ?? 0) / 100);
+          const savedSurveyItem = initialSurveyItems.find((surveyItem) => surveyItem.budgetItemId === item.id || (surveyItem.item === item.item && (surveyItem.importOrder ?? 0) === (item.importOrder ?? 0)));
+          const executed = savedSurveyItem?.executedQuantity ?? item.quantity * ((item.initialProgress ?? 0) / 100);
           return [item.item, executed ? String(Number(executed.toFixed(4))) : ""];
         })
       )
     );
-  }, [budgetItems]);
+    setObservationDraft(
+      Object.fromEntries(
+        budgetItems.map((item) => {
+          const savedSurveyItem = initialSurveyItems.find((surveyItem) => surveyItem.budgetItemId === item.id || (surveyItem.item === item.item && (surveyItem.importOrder ?? 0) === (item.importOrder ?? 0)));
+          return [getSurveyKey(item), savedSurveyItem?.observation ?? ""];
+        })
+      )
+    );
+  }, [budgetItems, initialSurveyItems]);
 
   const rows = useMemo(() => budgetItems.map((item) => buildSurveyRow(item, draft[item.item])), [budgetItems, draft]);
   const summary = useMemo(() => {
@@ -69,7 +80,12 @@ export default function InitialSurveyPage() {
     setDraft((current) => ({ ...current, [item.item]: value }));
   }
 
-  function saveSurvey() {
+  function updateObservation(item: BudgetItem, value: string) {
+    setMessage("");
+    setObservationDraft((current) => ({ ...current, [getSurveyKey(item)]: value }));
+  }
+
+  async function saveSurvey() {
     const invalidRow = rows.find((row) => row.invalidReason);
     if (invalidRow) {
       setMessage(invalidRow.item.item + ": " + invalidRow.invalidReason);
@@ -82,8 +98,12 @@ export default function InitialSurveyPage() {
     const updatedItems = budgetItems.map((item) => {
       const executed = parseNumber(draft[item.item]);
       const initialProgress = item.quantity === 0 ? 0 : Math.min(100, (executed / item.quantity) * 100);
-      return { ...item, initialProgress: Number(initialProgress.toFixed(4)) };
+      return { ...item, initialProgress: Number(initialProgress.toFixed(4)), executedQuantity: executed };
     });
+    if (updatedItems.length === 0) {
+      setMessage("No hay actividades del presupuesto para guardar en el levantamiento inicial.");
+      return;
+    }
     const metadata: InitialSurveyMetadata = {
       savedAt: new Date().toISOString(),
       savedBy: "Jose Martinez",
@@ -93,8 +113,15 @@ export default function InitialSurveyPage() {
       initialProgress: summary.initialProgress
     };
 
-    saveInitialSurvey(updatedItems, metadata);
-    setMessage("Levantamiento inicial guardado correctamente.");
+    setIsSaving(true);
+    try {
+      const result = await saveInitialSurvey(updatedItems, metadata, observationDraft);
+      setMessage(result.warning ?? "Levantamiento inicial guardado correctamente.");
+    } catch (error) {
+      setMessage("No fue posible guardar el levantamiento inicial. " + (error instanceof Error ? error.message : "Error desconocido."));
+    } finally {
+      setIsSaving(false);
+    }
   }
 
   function exportSurvey() {
@@ -130,8 +157,8 @@ export default function InitialSurveyPage() {
               <button type="button" onClick={exportSurvey} className="focus-ring rounded-md border border-dac-primary/20 px-4 py-3 text-sm font-black text-dac-primary hover:bg-dac-secondary/10">
                 Exportar levantamiento
               </button>
-              <button type="button" onClick={saveSurvey} className="focus-ring rounded-md bg-dac-primary px-4 py-3 text-sm font-black text-white hover:bg-dac-secondary">
-                Guardar levantamiento inicial
+              <button type="button" onClick={saveSurvey} disabled={isSaving} className="focus-ring rounded-md bg-dac-primary px-4 py-3 text-sm font-black text-white hover:bg-dac-secondary disabled:cursor-not-allowed disabled:opacity-60">
+                {isSaving ? "Guardando..." : "Guardar levantamiento inicial"}
               </button>
             </div>
           </div>
@@ -167,7 +194,7 @@ export default function InitialSurveyPage() {
           <table className="w-full min-w-[1180px] border-collapse text-left">
             <thead className="bg-dac-primary text-white">
               <tr>
-                {["ITEM", "DESCRIPCION", "UND", "CANTIDAD CONTRATADA", "EJECUTADO INICIAL", "PENDIENTE INICIAL", "% INICIAL", "VALOR EJECUTADO INICIAL", "ESTADO"].map((header) => (
+                {["ITEM", "DESCRIPCION", "UND", "CANTIDAD CONTRATADA", "EJECUTADO INICIAL", "PENDIENTE INICIAL", "% INICIAL", "VALOR EJECUTADO INICIAL", "OBSERVACION", "ESTADO"].map((header) => (
                   <th key={header} className="px-4 py-3 text-xs font-black uppercase">{header}</th>
                 ))}
               </tr>
@@ -193,6 +220,14 @@ export default function InitialSurveyPage() {
                   <td className="px-4 py-4 text-sm font-semibold">{numberFormatter.format(row.pendingQuantity)}</td>
                   <td className="px-4 py-4 text-sm font-black text-dac-primary">{row.initialProgress.toFixed(1)} %</td>
                   <td className="px-4 py-4 text-sm font-semibold">{currencyFormatter.format(row.executedValue)}</td>
+                  <td className="px-4 py-4">
+                    <input
+                      value={observationDraft[getSurveyKey(row.item)] ?? ""}
+                      onChange={(event) => updateObservation(row.item, event.target.value)}
+                      className="focus-ring w-56 rounded-md border border-dac-primary/20 px-3 py-2 text-sm font-semibold"
+                      placeholder="Observacion"
+                    />
+                  </td>
                   <td className="px-4 py-4"><span className={getStatusClass(row.status)}>{row.status}</span></td>
                 </tr>
               ))}
@@ -227,6 +262,10 @@ function getInvalidReason(value: number, contractedQuantity: number) {
   if (value < 0) return "No se permiten valores negativos.";
   if (value > contractedQuantity) return "El ejecutado inicial no puede superar la cantidad contratada.";
   return "";
+}
+
+function getSurveyKey(item: BudgetItem) {
+  return item.id ?? item.item + "-" + (item.importOrder ?? 0);
 }
 
 function SummaryCard({ label, value, tone = "secondary" }: { label: string; value: string; tone?: "primary" | "secondary" | "alert" | "muted" }) {
