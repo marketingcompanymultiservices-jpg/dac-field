@@ -886,8 +886,17 @@ export function ProjectStoreProvider({ children }: { children: ReactNode }) {
       ]);
     },
     async saveInitialSurvey(items, metadata, observations = {}) {
+      console.info("[DAC InitialSurvey Diagnostic] saveInitialSurvey inicio", {
+        projectId: project.id,
+        updatedItemsLength: items.length,
+        metadata
+      });
       setShouldPersist(true);
       const savedSurveyItems = await saveProjectInitialSurveyItems(project.id, items, observations);
+      console.info("[DAC InitialSurvey Diagnostic] saveInitialSurvey resultado guardado", {
+        projectId: project.id,
+        savedSurveyItemsLength: savedSurveyItems.length
+      });
       if (savedSurveyItems.length === 0) {
         throw new Error("No se guardo ningun registro del levantamiento inicial. El avance no fue recalculado.");
       }
@@ -895,6 +904,9 @@ export function ProjectStoreProvider({ children }: { children: ReactNode }) {
 
       let warning: string | undefined;
       try {
+        console.info("[DAC InitialSurvey Diagnostic] ejecutando recalculateProjectBudgetExecution", {
+          projectId: project.id
+        });
         await recalculateProjectBudgetExecution(project.id);
         try {
           const consolidatedBudget = await loadProjectBudgetFromSupabase(project.id);

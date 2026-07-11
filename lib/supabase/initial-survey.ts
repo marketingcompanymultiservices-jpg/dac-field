@@ -41,6 +41,10 @@ export async function loadProjectInitialSurveyItems(projectId: string) {
 
 export async function saveProjectInitialSurveyItems(projectId: string, items: BudgetItem[], observations: Record<string, string> = {}) {
   if (!supabaseClient) throw new Error("Supabase no esta configurado.");
+  console.info("[DAC InitialSurvey Diagnostic] saveProjectInitialSurveyItems inicio", {
+    projectId,
+    itemsLength: items.length
+  });
   if (items.length === 0) {
     throw new Error("No hay actividades del presupuesto para guardar en el levantamiento inicial.");
   }
@@ -64,6 +68,12 @@ export async function saveProjectInitialSurveyItems(projectId: string, items: Bu
       updated_by: userEmail,
       updated_at: new Date().toISOString()
     };
+    if (savedRows.length === 0) {
+      console.info("[DAC InitialSurvey Diagnostic] primer payload enviado", {
+        projectId,
+        payload
+      });
+    }
 
     const existing = item.id ? await findExistingSurveyRow(projectId, item.id) : null;
 
@@ -74,6 +84,13 @@ export async function saveProjectInitialSurveyItems(projectId: string, items: Bu
         .eq("id", existing.id)
         .select("*")
         .single();
+      console.info("[DAC InitialSurvey Diagnostic] resultado UPDATE project_initial_survey_items", {
+        projectId,
+        item: item.item,
+        payload,
+        data,
+        error
+      });
 
       if (error) {
         throw buildInitialSurveyOperationError("Error actualizando project_initial_survey_items", error, { projectId, item: item.item, payload });
@@ -88,6 +105,13 @@ export async function saveProjectInitialSurveyItems(projectId: string, items: Bu
       .insert({ ...payload, created_by: userEmail })
       .select("*")
       .single();
+    console.info("[DAC InitialSurvey Diagnostic] resultado INSERT project_initial_survey_items", {
+      projectId,
+      item: item.item,
+      payload: { ...payload, created_by: userEmail },
+      data,
+      error
+    });
 
     if (error) {
       throw buildInitialSurveyOperationError("Error insertando project_initial_survey_items", error, { projectId, item: item.item, payload });
@@ -99,6 +123,11 @@ export async function saveProjectInitialSurveyItems(projectId: string, items: Bu
   if (savedRows.length === 0) {
     throw new Error("No se guardo ningun registro en project_initial_survey_items.");
   }
+
+  console.info("[DAC InitialSurvey Diagnostic] filas guardadas en project_initial_survey_items", {
+    projectId,
+    savedRowsLength: savedRows.length
+  });
 
   return savedRows;
 }
