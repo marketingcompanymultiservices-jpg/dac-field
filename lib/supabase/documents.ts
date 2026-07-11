@@ -1,7 +1,7 @@
 import { supabaseClient } from "@/lib/supabaseClient";
 import type { DocumentStatus, ProjectDocument } from "@/types";
 
-export const DOCUMENTS_BUCKET = "dac-project-documents";
+export const DOCUMENTS_BUCKET = process.env.NEXT_PUBLIC_DOCUMENTS_BUCKET || "dac-project-documents";
 
 type DocumentRow = {
   id: string;
@@ -52,14 +52,41 @@ export async function loadProjectDocumentsFromSupabase(projectId: string) {
 export async function uploadProjectDocumentToSupabase(input: UploadProjectDocumentInput) {
   if (!supabaseClient) throw new Error("Supabase no esta configurado.");
 
+  const { data: userData } = await supabaseClient.auth.getUser();
+  const authenticatedUser = userData.user?.email ?? input.uploadedByEmail ?? input.uploadedBy;
   const safeFileName = sanitizeFileName(input.file.name);
   const storagePath = [
     input.projectId,
     input.folder,
     Date.now() + "-" + safeFileName
   ].join("/");
+  const uploadContext = {
+    bucket: DOCUMENTS_BUCKET,
+    storagePath,
+    fileName: input.file.name,
+    projectId: input.projectId,
+    authenticatedUser
+  };
 
-  const { error: uploadError } = await supabaseClient.storage
+  console.info("[DAC Documents] Bucket utilizado para carga documental", uploadContext);
+
+  const bucketDiagnostic = await inspectDocumentsBucket(DOCUMENTS_BUCKET);
+  console.info("[DAC Documents] Diagnostico Supabase Storage", {
+    ...uploadContext,
+    bucketDiagnostic
+  });
+
+  if (bucketDiagnostic.status === "missing") {
+    throw new Error(
+      "El bucket requerido para documentos no existe en Supabase Storage. Debe existir: " +
+        DOCUMENTS_BUCKET +
+        ". Buckets disponibles: " +
+        (bucketDiagnostic.availableBuckets.length > 0 ? bucketDiagnostic.availableBuckets.join(", ") : "sin acceso o sin buckets visibles") +
+        "."
+    );
+  }
+
+  const uploadResponse = await supabaseClient.storage
     .from(DOCUMENTS_BUCKET)
     .upload(storagePath, input.file, {
       cacheControl: "3600",
@@ -67,7 +94,12 @@ export async function uploadProjectDocumentToSupabase(input: UploadProjectDocume
       contentType: input.file.type || undefined
     });
 
-  if (uploadError) throw buildDocumentError("No fue posible subir el archivo a Supabase Storage.", uploadError);
+  console.info("[DAC Documents] Respuesta completa de Supabase Storage", {
+    ...uploadContext,
+    response: uploadResponse
+  });
+
+  if (uploadResponse.error) throw buildDocumentError("No fue posible subir el archivo a Supabase Storage.", uploadResponse.error, uploadContext);
 
   const { data: publicData } = supabaseClient.storage.from(DOCUMENTS_BUCKET).getPublicUrl(storagePath);
 
@@ -95,7 +127,7 @@ export async function uploadProjectDocumentToSupabase(input: UploadProjectDocume
     .select("*")
     .single();
 
-  if (metadataError) throw buildDocumentError("El archivo subio, pero no fue posible guardar metadatos del documento.", metadataError);
+  if (metadataError) throw buildDocumentError("El archivo subio, pero no fue posible guardar metadatos del documento.", metadataError, uploadContext);
 
   return mapDocumentRow(data as DocumentRow);
 }
@@ -108,8 +140,38 @@ export async function createProjectDocumentDownloadUrl(document: ProjectDocument
     .from(DOCUMENTS_BUCKET)
     .createSignedUrl(document.storagePath, 60);
 
-  if (error) throw buildDocumentError("No fue posible crear enlace de descarga.", error);
+  if (error) throw buildDocumentError("No fue posible crear enlace de descarga.", error, {
+    bucket: DOCUMENTS_BUCKET,
+    storagePath: document.storagePath,
+    fileName: document.fileName ?? document.name,
+    projectId: document.projectId ?? "",
+    authenticatedUser: document.uploadedBy ?? document.user
+  });
   return data.signedUrl;
+}
+
+async function inspectDocumentsBucket(bucketName: string) {
+  if (!supabaseClient) return { status: "unavailable" as const, availableBuckets: [], error: "Supabase no esta configurado." };
+
+  const { data, error } = await supabaseClient.storage.listBuckets();
+  const availableBuckets = (data ?? []).map((bucket) => bucket.name || bucket.id).filter(Boolean);
+
+  if (error) {
+    return {
+      status: "unknown" as const,
+      availableBuckets,
+      error: {
+        message: error.message,
+        name: error.name
+      }
+    };
+  }
+
+  return {
+    status: availableBuckets.includes(bucketName) ? ("found" as const) : ("missing" as const),
+    availableBuckets,
+    error: null
+  };
 }
 
 function mapDocumentRow(row: DocumentRow): ProjectDocument {
@@ -143,9 +205,10 @@ function sanitizeFileName(fileName: string) {
     .toLowerCase();
 }
 
-function buildDocumentError(message: string, error: unknown) {
+function buildDocumentError(message: string, error: unknown, context?: Record<string, unknown>) {
   const typed = error as { message?: string; statusCode?: string; error?: string; code?: string; details?: string; hint?: string };
   console.error("[DAC Documents] " + message, {
+    context,
     code: typed.code,
     statusCode: typed.statusCode,
     message: typed.message,

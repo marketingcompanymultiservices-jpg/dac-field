@@ -86,7 +86,7 @@ export function DocumentsBoard({ folders }: { folders: string[] }) {
     });
 
     addDocument(uploadedDocument);
-    setMessage("Documento cargado en Supabase Storage.");
+    setMessage("Documento cargado correctamente en Supabase Storage.");
   }
 
   async function handleDownload(document: ProjectDocument) {
