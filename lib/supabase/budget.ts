@@ -6,6 +6,7 @@ type BudgetItemRow = {
   project_id: string;
   item: string;
   import_order: number | string | null;
+  budget_type?: string | null;
   description: string;
   unit: string;
   quantity: number | string;
@@ -15,6 +16,10 @@ type BudgetItemRow = {
   subchapter: string;
   initial_progress: number | string | null;
   executed_quantity: number | string | null;
+  executed_value?: number | string | null;
+  pending_value?: number | string | null;
+  physical_progress_percent?: number | string | null;
+  financial_progress_percent?: number | string | null;
 };
 
 type BudgetVersionRow = {
@@ -36,6 +41,9 @@ type SupabaseBudgetError = {
 
 export async function loadProjectBudgetFromSupabase(projectId: string) {
   if (!supabaseClient) throw new Error("Supabase no esta configurado.");
+  console.info("[DAC Budget Diagnostic] loadProjectBudgetFromSupabase projectId recibido", {
+    projectId
+  });
 
   const { data: itemRows, error: itemsError } = await supabaseClient
     .from("project_budget_items")
@@ -43,7 +51,20 @@ export async function loadProjectBudgetFromSupabase(projectId: string) {
     .eq("project_id", projectId)
     .order("item", { ascending: true });
 
+  console.info("[DAC Budget Diagnostic] project_budget_items respuesta", {
+    projectId,
+    rowCount: itemRows?.length ?? 0,
+    firstRow: itemRows?.[0] ?? null
+  });
+
   if (itemsError) {
+    console.error("[DAC Budget Diagnostic] project_budget_items error", {
+      projectId,
+      code: itemsError.code,
+      message: itemsError.message,
+      details: itemsError.details,
+      hint: itemsError.hint
+    });
     throw buildBudgetOperationError("Error leyendo project_budget_items", itemsError);
   }
 
@@ -163,6 +184,7 @@ function mapBudgetItemRow(row: BudgetItemRow): BudgetItem {
     id: row.id,
     item: row.item,
     importOrder: Number(row.import_order ?? 0) || 0,
+    budgetType: row.budget_type ?? undefined,
     description: row.description,
     unit: row.unit,
     quantity: Number(row.quantity) || 0,
@@ -171,8 +193,12 @@ function mapBudgetItemRow(row: BudgetItemRow): BudgetItem {
     chapter: row.chapter,
     subchapter: row.subchapter,
     initialProgress: Number(row.initial_progress ?? 0) || 0,
-    executedQuantity: Number(row.executed_quantity ?? 0) || 0
-  };
+    executedQuantity: Number(row.executed_quantity ?? 0) || 0,
+    executedValue: Number(row.executed_value ?? 0) || 0,
+    pendingValue: Number(row.pending_value ?? 0) || 0,
+    physicalProgressPercent: Number(row.physical_progress_percent ?? 0) || 0,
+    financialProgressPercent: Number(row.financial_progress_percent ?? 0) || 0
+  } as BudgetItem;
 }
 
 function mapBudgetVersionRow(row: BudgetVersionRow): BudgetVersion {

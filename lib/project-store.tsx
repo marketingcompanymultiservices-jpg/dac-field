@@ -412,6 +412,10 @@ export function ProjectStoreProvider({ children }: { children: ReactNode }) {
     async function loadRemoteBudget() {
       try {
         const remoteBudget = await loadProjectBudgetFromSupabase(projectBase.id);
+        console.info("[DAC Budget Diagnostic] loadRemoteBudget resultado", {
+          projectId: projectBase.id,
+          itemsLength: remoteBudget.items.length
+        });
         if (!active) return;
 
         if (remoteBudget.items.length > 0) {
@@ -452,10 +456,22 @@ export function ProjectStoreProvider({ children }: { children: ReactNode }) {
           return;
         }
 
+        console.warn("[DAC Budget Diagnostic] setBudgetItems([]) ejecutado porque Supabase devolvio 0 items", {
+          file: "lib/project-store.tsx",
+          function: "loadRemoteBudget",
+          projectId: projectBase.id,
+          remoteItemsLength: remoteBudget.items.length
+        });
         setBudgetItems([]);
         setBudgetVersion(remoteBudget.version);
       } catch (error) {
         if (!active) return;
+        console.warn("[DAC Budget Diagnostic] setBudgetItems([]) ejecutado por error en loadRemoteBudget", {
+          file: "lib/project-store.tsx",
+          function: "loadRemoteBudget",
+          projectId: projectBase.id,
+          error
+        });
         setBudgetItems([]);
         setBudgetVersion(null);
         setSystemEvents((current) => [
