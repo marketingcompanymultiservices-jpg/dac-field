@@ -41,53 +41,14 @@ type SupabaseBudgetError = {
 
 export async function loadProjectBudgetFromSupabase(projectId: string) {
   if (!supabaseClient) throw new Error("Supabase no esta configurado.");
-  console.info("[DAC Budget Diagnostic] loadProjectBudgetFromSupabase projectId recibido", {
-    projectId,
-    projectIdJson: JSON.stringify(projectId),
-    projectIdLength: projectId.length,
-    equivalentSql: 'select * from project_budget_items where project_id = "' + projectId + '" order by item asc'
-  });
-
   const budgetItemsResponse = await supabaseClient
     .from("project_budget_items")
     .select("*", { count: "exact" })
     .eq("project_id", projectId)
     .order("item", { ascending: true });
-  const { data: itemRows, error: itemsError, status, statusText, count } = budgetItemsResponse;
-
-  console.info("[DAC Budget Diagnostic] project_budget_items respuesta", {
-    projectId,
-    rowCount: itemRows?.length ?? 0,
-    firstRow: itemRows?.[0] ?? null,
-    response: {
-      data: itemRows,
-      error: itemsError,
-      status,
-      statusText,
-      count
-    }
-  });
-
-  if (!itemsError && Array.isArray(itemRows) && itemRows.length === 0) {
-    console.warn("[DAC Budget Diagnostic] Supabase respondió correctamente pero devolvió cero filas.", {
-      projectId,
-      projectIdJson: JSON.stringify(projectId),
-      projectIdLength: projectId.length,
-      equivalentSql: 'select * from project_budget_items where project_id = "' + projectId + '" order by item asc',
-      status,
-      statusText,
-      count
-    });
-  }
+  const { data: itemRows, error: itemsError } = budgetItemsResponse;
 
   if (itemsError) {
-    console.error("[DAC Budget Diagnostic] project_budget_items error", {
-      projectId,
-      code: itemsError.code,
-      message: itemsError.message,
-      details: itemsError.details,
-      hint: itemsError.hint
-    });
     throw buildBudgetOperationError("Error leyendo project_budget_items", itemsError);
   }
 

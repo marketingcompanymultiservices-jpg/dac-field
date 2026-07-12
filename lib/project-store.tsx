@@ -412,10 +412,6 @@ export function ProjectStoreProvider({ children }: { children: ReactNode }) {
     async function loadRemoteBudget() {
       try {
         const remoteBudget = await loadProjectBudgetFromSupabase(projectBase.id);
-        console.info("[DAC Budget Diagnostic] loadRemoteBudget resultado", {
-          projectId: projectBase.id,
-          itemsLength: remoteBudget.items.length
-        });
         if (!active) return;
 
         if (remoteBudget.items.length > 0) {
@@ -456,22 +452,10 @@ export function ProjectStoreProvider({ children }: { children: ReactNode }) {
           return;
         }
 
-        console.warn("[DAC Budget Diagnostic] setBudgetItems([]) ejecutado porque Supabase devolvio 0 items", {
-          file: "lib/project-store.tsx",
-          function: "loadRemoteBudget",
-          projectId: projectBase.id,
-          remoteItemsLength: remoteBudget.items.length
-        });
         setBudgetItems([]);
         setBudgetVersion(remoteBudget.version);
       } catch (error) {
         if (!active) return;
-        console.warn("[DAC Budget Diagnostic] setBudgetItems([]) ejecutado por error en loadRemoteBudget", {
-          file: "lib/project-store.tsx",
-          function: "loadRemoteBudget",
-          projectId: projectBase.id,
-          error
-        });
         setBudgetItems([]);
         setBudgetVersion(null);
         setSystemEvents((current) => [
@@ -886,17 +870,8 @@ export function ProjectStoreProvider({ children }: { children: ReactNode }) {
       ]);
     },
     async saveInitialSurvey(items, metadata, observations = {}) {
-      console.info("[DAC InitialSurvey Diagnostic] saveInitialSurvey inicio", {
-        projectId: project.id,
-        updatedItemsLength: items.length,
-        metadata
-      });
       setShouldPersist(true);
       const savedSurveyItems = await saveProjectInitialSurveyItems(project.id, items, observations);
-      console.info("[DAC InitialSurvey Diagnostic] saveInitialSurvey resultado guardado", {
-        projectId: project.id,
-        savedSurveyItemsLength: savedSurveyItems.length
-      });
       if (savedSurveyItems.length === 0) {
         throw new Error("No se guardo ningun registro del levantamiento inicial. El avance no fue recalculado.");
       }
@@ -904,9 +879,6 @@ export function ProjectStoreProvider({ children }: { children: ReactNode }) {
 
       let warning: string | undefined;
       try {
-        console.info("[DAC InitialSurvey Diagnostic] ejecutando recalculateProjectBudgetExecution", {
-          projectId: project.id
-        });
         await recalculateProjectBudgetExecution(project.id);
         try {
           const consolidatedBudget = await loadProjectBudgetFromSupabase(project.id);
