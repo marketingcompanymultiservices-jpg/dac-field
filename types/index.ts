@@ -149,6 +149,63 @@ export type BudgetVersion = {
   totalBudgetValue: number;
 };
 
+export type BudgetVersionSummary = BudgetVersion & {
+  projectId: string;
+  itemCount: number;
+  directCostValue: number;
+  extraWorksValue: number;
+  executedValue: number;
+  pendingValue: number;
+  physicalProgressPercent: number;
+  financialProgressPercent: number;
+};
+
+export type BudgetVersionComparisonType =
+  | "Nuevo"
+  | "Eliminado"
+  | "Cambio cantidad"
+  | "Cambio valor unitario"
+  | "Cambio valor total"
+  | "Cambio capitulo"
+  | "Cambio obra extra";
+
+export type BudgetVersionComparisonRow = {
+  comparisonKey: string;
+  type: BudgetVersionComparisonType;
+  sourceItem?: BudgetItem;
+  targetItem?: BudgetItem;
+  quantityDifference: number;
+  unitValueDifference: number;
+  totalValueDifference: number;
+  chapterChanged: boolean;
+  budgetTypeChanged: boolean;
+};
+
+export type BudgetVersionComparison = {
+  sourceVersion: BudgetVersion;
+  targetVersion: BudgetVersion;
+  sourceItems: number;
+  targetItems: number;
+  newItems: BudgetVersionComparisonRow[];
+  removedItems: BudgetVersionComparisonRow[];
+  changedItems: BudgetVersionComparisonRow[];
+  chapterChanges: BudgetVersionComparisonRow[];
+  extraWorksChanges: BudgetVersionComparisonRow[];
+  totalDifference: number;
+};
+
+export type BudgetVersionActivationResult = {
+  projectId: string;
+  archivedBudgetVersionId: string;
+  activatedBudgetVersionId: string;
+  archivedVersionNumber: number;
+  activatedVersionNumber: number;
+  activatedItems: number;
+  activatedTotalValue: number;
+  activatedAt: string;
+  activatedBy: string;
+};
+
 export type InitialSurveyMetadata = {
   savedAt: string;
   savedBy: string;

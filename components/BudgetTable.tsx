@@ -6,7 +6,7 @@ import { BudgetFilters, type BudgetFilterState } from "@/components/BudgetFilter
 import { useAuth } from "@/components/AuthProvider";
 import { getProgressStatus } from "@/lib/progress";
 import { useProjectStore } from "@/lib/project-store";
-import type { BudgetItem, BudgetProgressItem, BudgetQuantityChange, ManualProgressChange } from "@/types";
+import type { BudgetItem, BudgetQuantityChange, ManualProgressChange } from "@/types";
 
 const currencyFormatter = new Intl.NumberFormat("es-CO", {
   style: "currency",
@@ -25,7 +25,6 @@ const initialFilters: BudgetFilterState = {
 
 export function BudgetTable({
   items,
-  progressItems,
   manualProgressChanges,
   budgetQuantityChanges,
   projectId = "quintas-de-acuarela",
@@ -33,7 +32,6 @@ export function BudgetTable({
   onUpdateBudgetQuantity
 }: {
   items: BudgetItem[];
-  progressItems: BudgetProgressItem[];
   manualProgressChanges: ManualProgressChange[];
   budgetQuantityChanges: BudgetQuantityChange[];
   projectId?: string;
@@ -49,7 +47,6 @@ export function BudgetTable({
   const [observationDraft, setObservationDraft] = useState("");
   const [responsibleDraft, setResponsibleDraft] = useState("");
   const [message, setMessage] = useState("");
-  const progressByItem = useMemo(() => new Map(progressItems.map((item) => [item.item, item])), [progressItems]);
   const roleName = profile?.role ?? currentUser.role;
   const roleConfig = adminRoles.find((role) => role.name === roleName);
   const canEditBudget = roleName === "Administrador" || Boolean(roleConfig?.permissions.Presupuesto.Editar);
@@ -60,22 +57,20 @@ export function BudgetTable({
     return items.filter((item) => {
       const matchesChapter = filters.chapter === "Todos" || item.chapter === filters.chapter;
       const matchesSubchapter = filters.subchapter === "Todos" || item.subchapter === filters.subchapter;
-      const progressItem = progressByItem.get(item.item);
-      const status = getProgressStatus(progressItem?.progress ?? 0);
+      const status = getProgressStatus(item.physicalProgressPercent ?? 0);
       const matchesStatus = filters.status === "Todos" || status === filters.status;
       const matchesSearch =
         !search ||
-        [item.item, item.description, item.unit, item.chapter, item.subchapter].some((value) => value.toLowerCase().includes(search));
+        [item.item, item.description, item.unit, item.chapter, item.subchapter, item.budgetType ?? ""].some((value) => value.toLowerCase().includes(search));
 
       return matchesChapter && matchesSubchapter && matchesStatus && matchesSearch;
     });
-  }, [filters, items, progressByItem]);
+  }, [filters, items]);
 
   function startEditing(item: BudgetItem) {
-    const progressItem = progressByItem.get(item.item);
     setEditingItem(getBudgetRowKey(item));
     setBaseQuantityDraft(String(item.quantity));
-    setExecutedDraft(String(progressItem?.executedQuantity ?? 0));
+    setExecutedDraft(String(item.executedQuantity ?? 0));
     setObservationDraft("");
     setResponsibleDraft(profile ? (profile.firstName + " " + profile.lastName).trim() : user?.email ?? "");
     setMessage("");
@@ -91,8 +86,7 @@ export function BudgetTable({
   }
 
   function saveEditing(item: BudgetItem) {
-    const progressItem = progressByItem.get(item.item);
-    const previousQuantity = progressItem?.executedQuantity ?? 0;
+    const previousQuantity = item.executedQuantity ?? 0;
     const nextBaseQuantity = Number(baseQuantityDraft);
     const nextQuantity = Number(executedDraft);
 
@@ -171,7 +165,7 @@ export function BudgetTable({
           <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
             <div>
               <h2 className="text-xl font-black text-dac-primary">Presupuesto maestro</h2>
-              <p className="mt-1 text-sm text-dac-text/70">Base oficial para control fisico y financiero. Importacion Excel pendiente.</p>
+              <p className="mt-1 text-sm text-dac-text/70">Base oficial para control fisico y financiero consolidado.</p>
             </div>
             <p className="text-sm font-black text-dac-primary">{filteredItems.length} actividades visibles</p>
           </div>
@@ -182,20 +176,26 @@ export function BudgetTable({
       </div>
 
       <div className="max-h-[68vh] overflow-auto">
-        <table className="w-full min-w-[980px] table-fixed border-separate border-spacing-0 text-left">
+        <table className="w-full min-w-[1480px] table-fixed border-separate border-spacing-0 text-left">
           <colgroup>
             <col className="w-[86px]" />
             <col />
             <col className="w-[70px]" />
+            <col className="w-[110px]" />
             <col className="w-[105px]" />
             <col className="w-[105px]" />
             <col className="w-[105px]" />
+            <col className="w-[112px]" />
+            <col className="w-[122px]" />
+            <col className="w-[122px]" />
+            <col className="w-[122px]" />
+            <col className="w-[92px]" />
             <col className="w-[92px]" />
             <col className="w-[138px]" />
           </colgroup>
           <thead className="sticky top-0 z-20 bg-dac-primary text-white shadow-sm">
             <tr>
-              {["ITEM", "DESCRIPCION", "UND", "CANTIDAD", "EJECUTADO", "SALDO", "AVANCE", "ACCIONES"].map((header) => (
+              {["ITEM", "DESCRIPCION", "UND", "TIPO", "CANTIDAD", "EJECUTADO", "PENDIENTE", "V. UNIT.", "V. TOTAL", "V. EJEC.", "V. PEND.", "AV. FIS.", "AV. FIN.", "ACCIONES"].map((header) => (
                 <th key={header} className={"px-2.5 py-2.5 text-[11px] font-black uppercase " + (header === "ACCIONES" ? "sticky right-0 z-30 bg-dac-primary shadow-[-10px_0_14px_-14px_rgba(19,20,19,0.65)]" : "")}>
                   {header}
                 </th>
@@ -204,9 +204,13 @@ export function BudgetTable({
           </thead>
           <tbody>
             {filteredItems.map((item) => {
-              const progressItem = progressByItem.get(item.item);
-              const progress = progressItem?.progress ?? 0;
-              const status = getProgressStatus(progress);
+              const physicalProgress = item.physicalProgressPercent ?? 0;
+              const financialProgress = item.financialProgressPercent ?? 0;
+              const executedQuantity = item.executedQuantity ?? 0;
+              const pendingQuantity = Math.max(item.quantity - executedQuantity, 0);
+              const executedValue = item.executedValue ?? 0;
+              const pendingValue = item.pendingValue ?? 0;
+              const status = getProgressStatus(physicalProgress);
               const rowKey = getBudgetRowKey(item);
 
               return (
@@ -216,17 +220,23 @@ export function BudgetTable({
                   <td className="border-b border-dac-primary/10 px-2.5 py-3">
                     <p className="truncate text-sm font-bold text-dac-text" title={item.description}>{item.description}</p>
                     <p className="mt-1 truncate text-[11px] font-semibold text-dac-text/55" title={item.chapter + " / " + item.subchapter}>
-                      {item.chapter} / {item.subchapter} · V. unit. {currencyFormatter.format(item.unitValue)} · Total {currencyFormatter.format(item.totalValue)}
+                      {item.chapter} / {item.subchapter}
                     </p>
                   </td>
                   <td className="border-b border-dac-primary/10 px-2.5 py-3 text-sm font-semibold">{item.unit}</td>
+                  <td className="border-b border-dac-primary/10 px-2.5 py-3 text-xs font-black text-dac-primary">{item.budgetType ?? "Contrato"}</td>
                   <td className="border-b border-dac-primary/10 px-2.5 py-3 text-sm font-semibold tabular-nums">{numberFormatter.format(item.quantity)}</td>
-                  <td className="border-b border-dac-primary/10 px-2.5 py-3 text-sm font-semibold tabular-nums">{numberFormatter.format(progressItem?.executedQuantity ?? 0)}</td>
-                  <td className="border-b border-dac-primary/10 px-2.5 py-3 text-sm font-semibold tabular-nums">{numberFormatter.format(progressItem?.pendingQuantity ?? item.quantity)}</td>
+                  <td className="border-b border-dac-primary/10 px-2.5 py-3 text-sm font-semibold tabular-nums">{numberFormatter.format(executedQuantity)}</td>
+                  <td className="border-b border-dac-primary/10 px-2.5 py-3 text-sm font-semibold tabular-nums">{numberFormatter.format(pendingQuantity)}</td>
+                  <td className="border-b border-dac-primary/10 px-2.5 py-3 text-xs font-semibold tabular-nums">{currencyFormatter.format(item.unitValue)}</td>
+                  <td className="border-b border-dac-primary/10 px-2.5 py-3 text-xs font-semibold tabular-nums">{currencyFormatter.format(item.totalValue)}</td>
+                  <td className="border-b border-dac-primary/10 px-2.5 py-3 text-xs font-semibold tabular-nums">{currencyFormatter.format(executedValue)}</td>
+                  <td className="border-b border-dac-primary/10 px-2.5 py-3 text-xs font-semibold tabular-nums">{currencyFormatter.format(pendingValue)}</td>
                   <td className="border-b border-dac-primary/10 px-2.5 py-3">
-                    <p className="text-sm font-black text-dac-primary tabular-nums">{progress.toFixed(1)} %</p>
+                    <p className="text-sm font-black text-dac-primary tabular-nums">{physicalProgress.toFixed(1)} %</p>
                     <span className={getStatusClass(status)}>{status}</span>
                   </td>
+                  <td className="border-b border-dac-primary/10 px-2.5 py-3 text-sm font-black text-dac-primary tabular-nums">{financialProgress.toFixed(1)} %</td>
                   <td className="sticky right-0 z-10 border-b border-dac-primary/10 bg-white px-2.5 py-2.5 shadow-[-10px_0_14px_-14px_rgba(19,20,19,0.45)]">
                     <div className="grid gap-1.5">
                       <Link href={"/projects/" + projectId + "/activities/" + encodeURIComponent(item.item)} className="focus-ring inline-flex rounded-md bg-dac-primary px-2 py-1.5 text-center text-[11px] font-black text-white hover:bg-dac-secondary">
@@ -242,7 +252,7 @@ export function BudgetTable({
                 </tr>
                 {editingItem === rowKey && (
                   <tr className="border-b border-dac-primary/10 bg-dac-primary/[0.03]">
-                    <td colSpan={8} className="px-3 py-4">
+                    <td colSpan={14} className="px-3 py-4">
                       <div className="grid gap-4 lg:grid-cols-[1fr_1fr_1fr_1fr_auto]">
                         <label className="block text-sm font-black text-dac-text">
                           Cantidad presupuestada real
