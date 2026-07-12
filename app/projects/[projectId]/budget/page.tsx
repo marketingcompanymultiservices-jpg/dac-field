@@ -18,7 +18,8 @@ const currencyFormatter = new Intl.NumberFormat("es-CO", {
 export default function ProjectBudgetPage() {
   const { project, budgetItems, budgetVersion, manualProgressChanges, budgetQuantityChanges, importBudget, updateManualProgress, updateBudgetQuantity } = useProjectStore();
   const [activeTab, setActiveTab] = useState<"Oficial" | "Versiones">("Oficial");
-  const totalBudget = budgetItems.reduce((sum, item) => sum + item.totalValue, 0);
+  const itemsTotalBudget = budgetItems.reduce((sum, item) => sum + item.totalValue, 0);
+  const officialTotalBudget = budgetVersion?.totalBudgetValue ?? itemsTotalBudget;
 
   return (
     <PageShell activeItem="Presupuesto" projectId={project.id} backHref={"/projects/" + project.id} backLabel="Volver al Centro de Control">
@@ -26,7 +27,7 @@ export default function ProjectBudgetPage() {
         eyebrow="Modulo: Presupuesto"
         title={project.name}
         meta={"Estado: " + project.status}
-        aside={<HeaderMetric label="Valor total presupuesto" value={currencyFormatter.format(totalBudget)} detail="Fuente maestra para control fisico y financiero." />}
+        aside={<HeaderMetric label="Valor total presupuesto" value={currencyFormatter.format(officialTotalBudget)} detail="Fuente maestra para control fisico y financiero." />}
       />
 
       <div className="mt-6 flex flex-wrap gap-2 rounded-lg border border-dac-primary/10 bg-white p-2 shadow-sm">
