@@ -201,6 +201,12 @@ export function BudgetImportCard({ budgetVersion, onImportBudget }: BudgetImport
 }
 
 function ValidationSummary({ parsedBudget }: { parsedBudget: ParsedBudgetExcel }) {
+  console.info("[DAC BudgetImport Diagnostic] Datos recibidos por la interfaz", {
+    activitiesLength: parsedBudget.activities.length,
+    totalValue: parsedBudget.summary.totalBudgetValue,
+    parsedBudgetTotalValue: (parsedBudget as ParsedBudgetExcel & { totalValue?: number }).totalValue ?? null
+  });
+
   const summary = parsedBudget.summary;
   const cards = [
     ["Nombre del archivo", summary.fileName],
