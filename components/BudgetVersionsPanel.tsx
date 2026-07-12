@@ -3,11 +3,13 @@
 import { useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import {
+  activateProjectBudgetVersion,
   compareProjectBudgetVersions,
   listProjectBudgetVersions,
   loadProjectBudgetVersion,
   loadProjectBudgetVersionItems
 } from "@/lib/supabase/budget-versions";
+import { useProjectStore } from "@/lib/project-store";
 import type { BudgetItem, BudgetVersionComparison, BudgetVersionSummary } from "@/types";
 
 const currencyFormatter = new Intl.NumberFormat("es-CO", {
@@ -22,6 +24,7 @@ const percentFormatter = new Intl.NumberFormat("es-CO", {
 });
 
 export function BudgetVersionsPanel({ projectId }: { projectId: string }) {
+  const { refreshOfficialBudget } = useProjectStore();
   const [versions, setVersions] = useState<BudgetVersionSummary[]>([]);
   const [selectedVersion, setSelectedVersion] = useState<BudgetVersionSummary | null>(null);
   const [selectedItems, setSelectedItems] = useState<BudgetItem[]>([]);
@@ -31,34 +34,30 @@ export function BudgetVersionsPanel({ projectId }: { projectId: string }) {
   const [isLoading, setIsLoading] = useState(true);
   const [isDetailLoading, setIsDetailLoading] = useState(false);
   const [isComparing, setIsComparing] = useState(false);
+  const [isActivating, setIsActivating] = useState(false);
+  const [activatingVersionId, setActivatingVersionId] = useState("");
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
 
-  useEffect(() => {
-    let active = true;
-
-    async function loadVersions() {
-      try {
-        setIsLoading(true);
-        setError("");
-        const remoteVersions = await listProjectBudgetVersions(projectId);
-        if (!active) return;
-        setVersions(remoteVersions);
-        setSourceVersionId(remoteVersions.find((version) => version.status === "Oficial")?.id ?? remoteVersions[0]?.id ?? "");
-        setTargetVersionId(remoteVersions.find((version) => version.status === "Borrador")?.id ?? remoteVersions[1]?.id ?? "");
-      } catch (currentError) {
-        if (!active) return;
-        setError(currentError instanceof Error ? currentError.message : "No fue posible cargar las versiones del presupuesto.");
-      } finally {
-        if (active) setIsLoading(false);
-      }
+  async function reloadVersions(showLoading = false) {
+    try {
+      if (showLoading) setIsLoading(true);
+      setError("");
+      const remoteVersions = await listProjectBudgetVersions(projectId);
+      setVersions(remoteVersions);
+      setSourceVersionId(remoteVersions.find((version) => version.status === "Oficial")?.id ?? remoteVersions[0]?.id ?? "");
+      setTargetVersionId(remoteVersions.find((version) => version.status === "Borrador")?.id ?? remoteVersions[1]?.id ?? "");
+      return remoteVersions;
+    } catch (currentError) {
+      setError(currentError instanceof Error ? currentError.message : "No fue posible cargar las versiones del presupuesto.");
+      throw currentError;
+    } finally {
+      if (showLoading) setIsLoading(false);
     }
+  }
 
-    loadVersions();
-
-    return () => {
-      active = false;
-    };
+  useEffect(() => {
+    reloadVersions(true).catch(() => undefined);
   }, [projectId]);
 
   const selectedSummary = useMemo(() => buildDetailSummary(selectedItems), [selectedItems]);
@@ -103,6 +102,53 @@ export function BudgetVersionsPanel({ projectId }: { projectId: string }) {
       setError(currentError instanceof Error ? currentError.message : "No fue posible comparar las versiones.");
     } finally {
       setIsComparing(false);
+    }
+  }
+
+  async function activateVersion(version: BudgetVersionSummary) {
+    if (!version.id || isActivating || !canActivateVersion(version)) return;
+
+    const currentOfficial = versions.find((item) => item.status === "Oficial");
+    const confirmation = [
+      "Esta accion activara una nueva version Oficial del presupuesto.",
+      "",
+      "Version Oficial actual: " + (currentOfficial ? "V" + currentOfficial.versionNumber + " - " + currentOfficial.fileName : "No identificada"),
+      "Version seleccionada: V" + version.versionNumber + " - " + version.fileName,
+      "Items: " + numberFormatter.format(version.itemCount || version.totalActivities),
+      "Valor total: " + currencyFormatter.format(version.totalBudgetValue),
+      "",
+      "La Oficial actual quedara Archivada.",
+      "No se migraran avances historicos.",
+      "No se ejecutara el Motor Central.",
+      "",
+      "Para confirmar, acepta esta ventana."
+    ].join("\n");
+
+    if (!window.confirm(confirmation)) return;
+
+    try {
+      setIsActivating(true);
+      setActivatingVersionId(version.id);
+      setMessage("");
+      setError("");
+      const result = await activateProjectBudgetVersion(projectId, version.id);
+      await reloadVersions(false);
+      await refreshOfficialBudget();
+      setSelectedVersion(null);
+      setSelectedItems([]);
+      setComparison(null);
+      setMessage(
+        "Version " +
+          result.activatedVersionNumber +
+          " activada como Oficial. La version " +
+          result.archivedVersionNumber +
+          " quedo Archivada."
+      );
+    } catch (currentError) {
+      setError(currentError instanceof Error ? currentError.message : "No fue posible activar la version seleccionada.");
+    } finally {
+      setIsActivating(false);
+      setActivatingVersionId("");
     }
   }
 
@@ -179,6 +225,16 @@ export function BudgetVersionsPanel({ projectId }: { projectId: string }) {
                       >
                         Ver version
                       </button>
+                      {canActivateVersion(version) && (
+                        <button
+                          type="button"
+                          onClick={() => activateVersion(version)}
+                          disabled={!version.id || isActivating}
+                          className="focus-ring ml-2 rounded-md bg-dac-alert px-3 py-2 text-xs font-black text-white hover:bg-dac-alert/85 disabled:bg-dac-alert/35"
+                        >
+                          {activatingVersionId === version.id ? "Activando..." : "Activar como Oficial"}
+                        </button>
+                      )}
                     </BodyCell>
                   </tr>
                 ))}
@@ -349,6 +405,10 @@ function VersionBreakdown({ title, rows }: { title: string; rows: Array<{ label:
 
 function StatusBadge({ status }: { status: string }) {
   return <span className={getStatusClass(status)}>{status}</span>;
+}
+
+function canActivateVersion(version: BudgetVersionSummary) {
+  return version.status === "Borrador" || version.status === "En revision";
 }
 
 function getStatusClass(status: string) {

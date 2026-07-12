@@ -105,6 +105,7 @@ type ProjectStoreValue = {
   addReport: (report: ProjectReport) => void;
   deleteDraftReport: (id: string) => void;
   importBudget: (items: BudgetItem[], version: BudgetVersion) => Promise<BudgetVersion>;
+  refreshOfficialBudget: () => Promise<void>;
   updateManualProgress: (change: Omit<ManualProgressChange, "id" | "date" | "origin">) => void;
   updateBudgetQuantity: (change: Omit<BudgetQuantityChange, "id" | "date" | "origin">) => void;
   saveInitialSurvey: (items: BudgetItem[], metadata: InitialSurveyMetadata, observations?: Record<string, string>) => Promise<{ warning?: string }>;
@@ -787,6 +788,12 @@ export function ProjectStoreProvider({ children }: { children: ReactNode }) {
         ]);
         throw error;
       }
+    },
+    async refreshOfficialBudget() {
+      const remoteBudget = await loadProjectBudgetFromSupabase(project.id);
+      setBudgetItems(remoteBudget.items);
+      setBudgetVersion(remoteBudget.version);
+      setShouldPersist(true);
     },
     updateManualProgress(change) {
       setShouldPersist(true);
