@@ -249,12 +249,6 @@ export function detectBudgetRows(rows: RawRow[], columns: ColumnMap, firstRowNum
       return;
     }
 
-    const combinedText = normalizeText([item, description, ...row.map((cell) => String(cell ?? ""))].join(" "));
-    if (isSubtotalLike(combinedText)) {
-      discardedRows.push({ rowNumber, item, description, reason: combinedText.includes("subtotal") ? "Es subtotal" : "Es total general" });
-      return;
-    }
-
     const unit = getCell(row, columns.unit);
     const quantity = parseNumber(row[columns.quantity]);
     const unitValue = columns.unitValue === undefined ? 0 : parseCurrency(row[columns.unitValue]);
@@ -264,8 +258,14 @@ export function detectBudgetRows(rows: RawRow[], columns: ColumnMap, firstRowNum
     const pendingQuantity = columns.pendingQuantity === undefined ? Math.max(quantity - executedQuantity, 0) : parseNumber(row[columns.pendingQuantity]);
     const pendingValue = columns.pendingValue === undefined ? Math.max(totalValue - executedValue, 0) : parseCurrency(row[columns.pendingValue]);
     const initialProgress = columns.progress === undefined ? 0 : parseProgress(row[columns.progress]);
+    const itemDescriptionText = normalizeText([item, description].join(" "));
 
     if ([quantity, unitValue, totalValue, executedQuantity, executedValue, pendingQuantity, pendingValue, initialProgress].some((value) => Number.isNaN(value))) {
+      if (isSubtotalLike(itemDescriptionText)) {
+        discardedRows.push({ rowNumber, item, description, reason: itemDescriptionText.includes("subtotal") ? "Es subtotal" : "Es total general" });
+        return;
+      }
+
       discardedRows.push({ rowNumber, item, description, reason: "Valor invalido" });
       warnings.push("Fila " + rowNumber + ": contiene valores numericos invalidos.");
       return;
@@ -277,6 +277,12 @@ export function detectBudgetRows(rows: RawRow[], columns: ColumnMap, firstRowNum
     const hasUnitValue = unitValue > 0;
     const hasTotalValue = totalValue > 0;
     const itemText = item || String(rowNumber);
+    const hasCompleteActivity = Boolean(item) && hasDescription && hasUnit && hasQuantity && hasUnitValue && hasTotalValue;
+
+    if (!hasCompleteActivity && isSubtotalLike(itemDescriptionText)) {
+      discardedRows.push({ rowNumber, item, description, reason: itemDescriptionText.includes("subtotal") ? "Es subtotal" : "Es total general" });
+      return;
+    }
 
     if (!hasUnit && !hasQuantity && hasDescription) {
       if (/^\d+$/.test(itemText)) {
