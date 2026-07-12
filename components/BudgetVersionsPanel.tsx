@@ -24,10 +24,11 @@ const percentFormatter = new Intl.NumberFormat("es-CO", {
 });
 
 export function BudgetVersionsPanel({ projectId }: { projectId: string }) {
-  const { refreshOfficialBudget } = useProjectStore();
+  const { project, refreshOfficialBudget } = useProjectStore();
   const [versions, setVersions] = useState<BudgetVersionSummary[]>([]);
   const [selectedVersion, setSelectedVersion] = useState<BudgetVersionSummary | null>(null);
   const [selectedItems, setSelectedItems] = useState<BudgetItem[]>([]);
+  const [activationCandidate, setActivationCandidate] = useState<BudgetVersionSummary | null>(null);
   const [sourceVersionId, setSourceVersionId] = useState("");
   const [targetVersionId, setTargetVersionId] = useState("");
   const [comparison, setComparison] = useState<BudgetVersionComparison | null>(null);
@@ -38,6 +39,7 @@ export function BudgetVersionsPanel({ projectId }: { projectId: string }) {
   const [activatingVersionId, setActivatingVersionId] = useState("");
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+  const [activationError, setActivationError] = useState("");
 
   async function reloadVersions(showLoading = false) {
     try {
@@ -105,47 +107,47 @@ export function BudgetVersionsPanel({ projectId }: { projectId: string }) {
     }
   }
 
-  async function activateVersion(version: BudgetVersionSummary) {
+  useEffect(() => {
+    if (!activationCandidate || isActivating) return undefined;
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        setActivationCandidate(null);
+        setActivationError("");
+      }
+    }
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [activationCandidate, isActivating]);
+
+  function requestActivation(version: BudgetVersionSummary) {
     if (!version.id || isActivating || !canActivateVersion(version)) return;
+    setMessage("");
+    setError("");
+    setActivationError("");
+    setActivationCandidate(version);
+  }
 
-    const currentOfficial = versions.find((item) => item.status === "Oficial");
-    const confirmation = [
-      "Esta accion activara una nueva version Oficial del presupuesto.",
-      "",
-      "Version Oficial actual: " + (currentOfficial ? "V" + currentOfficial.versionNumber + " - " + currentOfficial.fileName : "No identificada"),
-      "Version seleccionada: V" + version.versionNumber + " - " + version.fileName,
-      "Items: " + numberFormatter.format(version.itemCount || version.totalActivities),
-      "Valor total: " + currencyFormatter.format(version.totalBudgetValue),
-      "",
-      "La Oficial actual quedara Archivada.",
-      "No se migraran avances historicos.",
-      "No se ejecutara el Motor Central.",
-      "",
-      "Para confirmar, acepta esta ventana."
-    ].join("\n");
-
-    if (!window.confirm(confirmation)) return;
+  async function activateVersion() {
+    if (!activationCandidate?.id || isActivating || !canActivateVersion(activationCandidate)) return;
 
     try {
       setIsActivating(true);
-      setActivatingVersionId(version.id);
+      setActivatingVersionId(activationCandidate.id);
       setMessage("");
       setError("");
-      const result = await activateProjectBudgetVersion(projectId, version.id);
+      setActivationError("");
+      await activateProjectBudgetVersion(projectId, activationCandidate.id);
       await reloadVersions(false);
       await refreshOfficialBudget();
       setSelectedVersion(null);
       setSelectedItems([]);
       setComparison(null);
-      setMessage(
-        "Version " +
-          result.activatedVersionNumber +
-          " activada como Oficial. La version " +
-          result.archivedVersionNumber +
-          " quedo Archivada."
-      );
+      setActivationCandidate(null);
+      setMessage("La version fue activada correctamente.");
     } catch (currentError) {
-      setError(currentError instanceof Error ? currentError.message : "No fue posible activar la version seleccionada.");
+      setActivationError(currentError instanceof Error ? currentError.message : "No fue posible activar la version seleccionada.");
     } finally {
       setIsActivating(false);
       setActivatingVersionId("");
@@ -228,7 +230,7 @@ export function BudgetVersionsPanel({ projectId }: { projectId: string }) {
                       {canActivateVersion(version) && (
                         <button
                           type="button"
-                          onClick={() => activateVersion(version)}
+                          onClick={() => requestActivation(version)}
                           disabled={!version.id || isActivating}
                           className="focus-ring ml-2 rounded-md bg-dac-alert px-3 py-2 text-xs font-black text-white hover:bg-dac-alert/85 disabled:bg-dac-alert/35"
                         >
@@ -326,7 +328,134 @@ export function BudgetVersionsPanel({ projectId }: { projectId: string }) {
           </div>
         </div>
       )}
+
+      {activationCandidate && (
+        <ActivationModal
+          projectName={project.name}
+          currentOfficial={versions.find((version) => version.status === "Oficial") ?? null}
+          selectedVersion={activationCandidate}
+          isActivating={isActivating}
+          error={activationError}
+          onCancel={() => {
+            if (isActivating) return;
+            setActivationCandidate(null);
+            setActivationError("");
+          }}
+          onConfirm={activateVersion}
+        />
+      )}
     </section>
+  );
+}
+
+function ActivationModal({
+  projectName,
+  currentOfficial,
+  selectedVersion,
+  isActivating,
+  error,
+  onCancel,
+  onConfirm
+}: {
+  projectName: string;
+  currentOfficial: BudgetVersionSummary | null;
+  selectedVersion: BudgetVersionSummary;
+  isActivating: boolean;
+  error: string;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-dac-text/60 px-4 py-6"
+      role="presentation"
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget) onCancel();
+      }}
+    >
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="activate-budget-version-title"
+        className="max-h-[92vh] w-full max-w-3xl overflow-y-auto rounded-lg bg-white shadow-2xl"
+        onMouseDown={(event) => event.stopPropagation()}
+      >
+        <div className="border-b border-dac-primary/10 px-5 py-4 sm:px-6">
+          <p className="text-xs font-black uppercase text-dac-alert">Operacion controlada</p>
+          <h3 id="activate-budget-version-title" className="mt-1 text-2xl font-black text-dac-primary">
+            Activar version de presupuesto
+          </h3>
+          <p className="mt-2 text-sm font-semibold text-dac-text/65">
+            Revisa el resumen antes de cambiar el presupuesto Oficial del proyecto.
+          </p>
+        </div>
+
+        <div className="grid gap-5 px-5 py-5 sm:px-6">
+          <div className="grid gap-3 sm:grid-cols-2">
+            <ModalInfo label="Proyecto" value={projectName} />
+            <ModalInfo
+              label="Version Oficial actual"
+              value={currentOfficial ? "V" + currentOfficial.versionNumber + " - " + currentOfficial.fileName : "No identificada"}
+            />
+            <ModalInfo label="Version que sera activada" value={"V" + selectedVersion.versionNumber} />
+            <ModalInfo label="Archivo" value={selectedVersion.fileName} />
+            <ModalInfo label="Fecha de importacion" value={formatDate(selectedVersion.importedAt)} />
+            <ModalInfo label="Usuario que importo" value={selectedVersion.importedBy || "-"} />
+            <ModalInfo label="Numero de actividades" value={numberFormatter.format(selectedVersion.itemCount || selectedVersion.totalActivities)} />
+            <ModalInfo label="Valor total" value={currencyFormatter.format(selectedVersion.totalBudgetValue)} />
+          </div>
+
+          <div className="rounded-lg border border-dac-primary/10 bg-dac-primary/5 p-4">
+            <h4 className="text-sm font-black uppercase text-dac-primary">Consecuencias</h4>
+            <ul className="mt-3 grid gap-2 text-sm font-semibold text-dac-text/75">
+              <li>✓ La version Oficial actual pasara a estado Archivada.</li>
+              <li>✓ La version seleccionada sera la nueva version Oficial.</li>
+              <li>✓ El Presupuesto Oficial del proyecto cambiara inmediatamente.</li>
+              <li>✓ Los avances historicos NO seran migrados automaticamente.</li>
+              <li>✓ El Motor Central NO sera ejecutado.</li>
+            </ul>
+            <p className="mt-4 rounded-md bg-dac-alert/15 px-3 py-3 text-sm font-black text-dac-alert">
+              Esta operacion modifica el presupuesto oficial del proyecto y no puede deshacerse automaticamente.
+            </p>
+          </div>
+
+          {error && (
+            <div className="rounded-md bg-dac-alert/15 px-4 py-3 text-sm font-black text-dac-alert">
+              {error}
+            </div>
+          )}
+        </div>
+
+        <div className="flex flex-col-reverse gap-3 border-t border-dac-primary/10 px-5 py-4 sm:flex-row sm:justify-end sm:px-6">
+          <button
+            type="button"
+            onClick={onCancel}
+            disabled={isActivating}
+            className="focus-ring rounded-md border border-dac-primary/20 bg-white px-5 py-3 text-sm font-black text-dac-primary hover:bg-dac-secondary/10 disabled:opacity-50"
+          >
+            Cancelar
+          </button>
+          <button
+            type="button"
+            onClick={onConfirm}
+            disabled={isActivating}
+            className="focus-ring inline-flex items-center justify-center gap-2 rounded-md bg-dac-alert px-5 py-3 text-sm font-black text-white hover:bg-dac-alert/85 disabled:bg-dac-alert/40"
+          >
+            {isActivating && <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white" aria-hidden="true" />}
+            {isActivating ? "Activando..." : "Activar version"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ModalInfo({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-md border border-dac-primary/10 bg-white p-3">
+      <p className="text-xs font-black uppercase text-dac-text/45">{label}</p>
+      <p className="mt-1 break-words text-sm font-black text-dac-text">{value || "-"}</p>
+    </div>
   );
 }
 
