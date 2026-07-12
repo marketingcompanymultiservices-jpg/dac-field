@@ -34,6 +34,42 @@ type BudgetVersionRow = {
   file_name: string;
   total_activities: number;
   total_budget_value: number | string;
+  direct_cost_value?: number | string | null;
+  administration_value?: number | string | null;
+  contingency_value?: number | string | null;
+  utility_value?: number | string | null;
+  subtotal_before_vat_value?: number | string | null;
+  utility_vat_value?: number | string | null;
+  total_construction_cost_value?: number | string | null;
+  interest_value?: number | string | null;
+  supervision_value?: number | string | null;
+  total_project_value?: number | string | null;
+  direct_cost_executed_value?: number | string | null;
+  administration_executed_value?: number | string | null;
+  contingency_executed_value?: number | string | null;
+  utility_executed_value?: number | string | null;
+  subtotal_before_vat_executed_value?: number | string | null;
+  utility_vat_executed_value?: number | string | null;
+  total_construction_cost_executed_value?: number | string | null;
+  interest_executed_value?: number | string | null;
+  supervision_executed_value?: number | string | null;
+  total_executed_value?: number | string | null;
+  direct_cost_pending_value?: number | string | null;
+  administration_pending_value?: number | string | null;
+  contingency_pending_value?: number | string | null;
+  utility_pending_value?: number | string | null;
+  subtotal_before_vat_pending_value?: number | string | null;
+  utility_vat_pending_value?: number | string | null;
+  total_construction_cost_pending_value?: number | string | null;
+  interest_pending_value?: number | string | null;
+  supervision_pending_value?: number | string | null;
+  total_pending_value?: number | string | null;
+  administration_percent?: number | string | null;
+  contingency_percent?: number | string | null;
+  utility_percent?: number | string | null;
+  utility_vat_percent?: number | string | null;
+  supervision_percent?: number | string | null;
+  supervision_execution_mode?: "Manual" | "Avance financiero" | "Tiempo" | null;
 };
 
 type DraftBudgetVersionRpcRow = BudgetVersionRow & {
@@ -184,8 +220,31 @@ export async function createDraftProjectBudgetInSupabase(projectId: string, item
     throw new Error("La RPC create_draft_project_budget_version no retorno la version creada.");
   }
 
-  const draftVersion = mapBudgetVersionRow(savedVersion as DraftBudgetVersionRpcRow);
+  let draftVersion = mapBudgetVersionRow(savedVersion as DraftBudgetVersionRpcRow);
   const insertedCount = Number((savedVersion as DraftBudgetVersionRpcRow).inserted_items ?? 0) || 0;
+  const financialPayload = toBudgetVersionFinancialRow(version);
+
+  if (draftVersion.id && Object.keys(financialPayload).length > 0) {
+    const { data: updatedVersion, error: updateError } = await supabaseClient
+      .from("project_budget_versions")
+      .update(financialPayload)
+      .eq("project_id", projectId)
+      .eq("id", draftVersion.id)
+      .select("*")
+      .single();
+
+    if (updateError) {
+      throw buildBudgetOperationError("Error guardando metadata financiera en project_budget_versions", updateError, {
+        projectId,
+        budgetVersionId: draftVersion.id,
+        financialPayload,
+        authenticatedUser: diagnostics.user,
+        currentProfileRole: diagnostics.role
+      });
+    }
+
+    draftVersion = mapBudgetVersionRow(updatedVersion as BudgetVersionRow);
+  }
 
   return {
     version: {
@@ -257,7 +316,43 @@ function mapBudgetVersionRow(row: BudgetVersionRow): BudgetVersion {
     importedBy: row.imported_by,
     fileName: row.file_name,
     totalActivities: row.total_activities,
-    totalBudgetValue: Number(row.total_budget_value) || 0
+    totalBudgetValue: Number(row.total_budget_value) || 0,
+    directCostValue: Number(row.direct_cost_value ?? 0) || 0,
+    administrationValue: Number(row.administration_value ?? 0) || 0,
+    contingencyValue: Number(row.contingency_value ?? 0) || 0,
+    utilityValue: Number(row.utility_value ?? 0) || 0,
+    subtotalBeforeVatValue: Number(row.subtotal_before_vat_value ?? 0) || 0,
+    utilityVatValue: Number(row.utility_vat_value ?? 0) || 0,
+    totalConstructionCostValue: Number(row.total_construction_cost_value ?? 0) || 0,
+    interestValue: Number(row.interest_value ?? 0) || 0,
+    supervisionValue: Number(row.supervision_value ?? 0) || 0,
+    totalProjectValue: Number(row.total_project_value ?? 0) || 0,
+    directCostExecutedValue: Number(row.direct_cost_executed_value ?? 0) || 0,
+    administrationExecutedValue: Number(row.administration_executed_value ?? 0) || 0,
+    contingencyExecutedValue: Number(row.contingency_executed_value ?? 0) || 0,
+    utilityExecutedValue: Number(row.utility_executed_value ?? 0) || 0,
+    subtotalBeforeVatExecutedValue: Number(row.subtotal_before_vat_executed_value ?? 0) || 0,
+    utilityVatExecutedValue: Number(row.utility_vat_executed_value ?? 0) || 0,
+    totalConstructionCostExecutedValue: Number(row.total_construction_cost_executed_value ?? 0) || 0,
+    interestExecutedValue: Number(row.interest_executed_value ?? 0) || 0,
+    supervisionExecutedValue: Number(row.supervision_executed_value ?? 0) || 0,
+    totalExecutedValue: Number(row.total_executed_value ?? 0) || 0,
+    directCostPendingValue: Number(row.direct_cost_pending_value ?? 0) || 0,
+    administrationPendingValue: Number(row.administration_pending_value ?? 0) || 0,
+    contingencyPendingValue: Number(row.contingency_pending_value ?? 0) || 0,
+    utilityPendingValue: Number(row.utility_pending_value ?? 0) || 0,
+    subtotalBeforeVatPendingValue: Number(row.subtotal_before_vat_pending_value ?? 0) || 0,
+    utilityVatPendingValue: Number(row.utility_vat_pending_value ?? 0) || 0,
+    totalConstructionCostPendingValue: Number(row.total_construction_cost_pending_value ?? 0) || 0,
+    interestPendingValue: Number(row.interest_pending_value ?? 0) || 0,
+    supervisionPendingValue: Number(row.supervision_pending_value ?? 0) || 0,
+    totalPendingValue: Number(row.total_pending_value ?? 0) || 0,
+    administrationPercent: Number(row.administration_percent ?? 0) || 0,
+    contingencyPercent: Number(row.contingency_percent ?? 0) || 0,
+    utilityPercent: Number(row.utility_percent ?? 0) || 0,
+    utilityVatPercent: Number(row.utility_vat_percent ?? 0) || 0,
+    supervisionPercent: Number(row.supervision_percent ?? 0) || 0,
+    supervisionExecutionMode: row.supervision_execution_mode ?? undefined
   };
 }
 
@@ -294,8 +389,54 @@ function toBudgetVersionRow(projectId: string, version: BudgetVersion) {
     imported_by: version.importedBy,
     file_name: version.fileName,
     total_activities: version.totalActivities,
-    total_budget_value: version.totalBudgetValue
+    total_budget_value: version.totalBudgetValue,
+    ...toBudgetVersionFinancialRow(version)
   };
+}
+
+function toBudgetVersionFinancialRow(version: BudgetVersion) {
+  const payload: Record<string, unknown> = {};
+  assignDefined(payload, "direct_cost_value", version.directCostValue);
+  assignDefined(payload, "administration_value", version.administrationValue);
+  assignDefined(payload, "contingency_value", version.contingencyValue);
+  assignDefined(payload, "utility_value", version.utilityValue);
+  assignDefined(payload, "subtotal_before_vat_value", version.subtotalBeforeVatValue);
+  assignDefined(payload, "utility_vat_value", version.utilityVatValue);
+  assignDefined(payload, "total_construction_cost_value", version.totalConstructionCostValue);
+  assignDefined(payload, "interest_value", version.interestValue);
+  assignDefined(payload, "supervision_value", version.supervisionValue);
+  assignDefined(payload, "total_project_value", version.totalProjectValue);
+  assignDefined(payload, "direct_cost_executed_value", version.directCostExecutedValue);
+  assignDefined(payload, "administration_executed_value", version.administrationExecutedValue);
+  assignDefined(payload, "contingency_executed_value", version.contingencyExecutedValue);
+  assignDefined(payload, "utility_executed_value", version.utilityExecutedValue);
+  assignDefined(payload, "subtotal_before_vat_executed_value", version.subtotalBeforeVatExecutedValue);
+  assignDefined(payload, "utility_vat_executed_value", version.utilityVatExecutedValue);
+  assignDefined(payload, "total_construction_cost_executed_value", version.totalConstructionCostExecutedValue);
+  assignDefined(payload, "interest_executed_value", version.interestExecutedValue);
+  assignDefined(payload, "supervision_executed_value", version.supervisionExecutedValue);
+  assignDefined(payload, "total_executed_value", version.totalExecutedValue);
+  assignDefined(payload, "direct_cost_pending_value", version.directCostPendingValue);
+  assignDefined(payload, "administration_pending_value", version.administrationPendingValue);
+  assignDefined(payload, "contingency_pending_value", version.contingencyPendingValue);
+  assignDefined(payload, "utility_pending_value", version.utilityPendingValue);
+  assignDefined(payload, "subtotal_before_vat_pending_value", version.subtotalBeforeVatPendingValue);
+  assignDefined(payload, "utility_vat_pending_value", version.utilityVatPendingValue);
+  assignDefined(payload, "total_construction_cost_pending_value", version.totalConstructionCostPendingValue);
+  assignDefined(payload, "interest_pending_value", version.interestPendingValue);
+  assignDefined(payload, "supervision_pending_value", version.supervisionPendingValue);
+  assignDefined(payload, "total_pending_value", version.totalPendingValue);
+  assignDefined(payload, "administration_percent", version.administrationPercent);
+  assignDefined(payload, "contingency_percent", version.contingencyPercent);
+  assignDefined(payload, "utility_percent", version.utilityPercent);
+  assignDefined(payload, "utility_vat_percent", version.utilityVatPercent);
+  assignDefined(payload, "supervision_percent", version.supervisionPercent);
+  assignDefined(payload, "supervision_execution_mode", version.supervisionExecutionMode);
+  return payload;
+}
+
+function assignDefined(payload: Record<string, unknown>, key: string, value: unknown) {
+  if (value !== undefined) payload[key] = value;
 }
 
 function toBudgetItemRpcPayload(item: BudgetItem) {

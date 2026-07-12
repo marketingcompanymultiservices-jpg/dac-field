@@ -1,5 +1,5 @@
 import * as XLSX from "xlsx";
-import type { BudgetItem } from "@/types";
+import type { BudgetItem, BudgetVersion } from "@/types";
 
 export type ParsedBudgetRow = {
   rowNumber: number;
@@ -67,6 +67,7 @@ export type ParsedBudgetExcel = {
   duplicateItems: DuplicateBudgetItem[];
   discardedRows: DiscardedBudgetRow[];
   summary: BudgetValidationSummary;
+  financialMetadata: Partial<BudgetVersion>;
   warnings: string[];
   canImportWithAutoResolution: boolean;
   canImport: boolean;
@@ -151,6 +152,7 @@ export async function parseBudgetExcel(file: File): Promise<ParsedBudgetExcel> {
   }
 
   const detectedRows = detectBudgetRows(rows.slice(detected.headerIndex + 1), detected.columns as ColumnMap, detected.headerIndex + 2);
+  const financialMetadata = detectFinancialMetadata(rows);
   const duplicateItems = detectDuplicateItems(detectedRows.validRows);
   const activities = detectedRows.validRows.map((row, index) => ({
     id: "budget-" + row.item + "-" + row.importOrder,
@@ -202,6 +204,7 @@ export async function parseBudgetExcel(file: File): Promise<ParsedBudgetExcel> {
     duplicateItems,
     discardedRows: detectedRows.discardedRows,
     summary,
+    financialMetadata,
     warnings,
     canImportWithAutoResolution,
     canImport: canImportWithAutoResolution && duplicateItems.length === 0
@@ -393,6 +396,122 @@ function detectColumns(row: RawRow) {
   }
 
   return columns;
+}
+
+function detectFinancialMetadata(rows: RawRow[]): Partial<BudgetVersion> {
+  const metadata: Partial<BudgetVersion> = {
+    supervisionExecutionMode: "Manual"
+  };
+
+  rows.forEach((row) => {
+    const label = normalizeText([row[0], row[1]].filter(Boolean).join(" "));
+    if (!label) return;
+
+    if (label.includes("costo directo")) {
+      assignFinancialValues(metadata, "directCost", row);
+      return;
+    }
+
+    if (label.includes("administracion")) {
+      assignFinancialValues(metadata, "administration", row);
+      metadata.administrationPercent = parseOptionalNumber(row[3]);
+      return;
+    }
+
+    if (label.includes("imprevistos")) {
+      assignFinancialValues(metadata, "contingency", row);
+      metadata.contingencyPercent = parseOptionalNumber(row[3]);
+      return;
+    }
+
+    if (label.includes("utilidad") && !label.includes("iva")) {
+      assignFinancialValues(metadata, "utility", row);
+      metadata.utilityPercent = parseOptionalNumber(row[3]);
+      return;
+    }
+
+    if (label.includes("subtotal") && label.includes("antes de iva")) {
+      assignFinancialValues(metadata, "subtotalBeforeVat", row);
+      return;
+    }
+
+    if (label.includes("iva") && label.includes("utilidad")) {
+      assignFinancialValues(metadata, "utilityVat", row);
+      metadata.utilityVatPercent = parseOptionalNumber(row[3]);
+      return;
+    }
+
+    if (label.includes("total costos de obra")) {
+      assignFinancialValues(metadata, "totalConstructionCost", row);
+      return;
+    }
+
+    if (label.includes("intereses")) {
+      const total = parseOptionalCurrency(row[5]);
+      if (total !== undefined) metadata.interestValue = total;
+      metadata.interestExecutedValue = parseOptionalCurrency(row[8]) ?? 0;
+      metadata.interestPendingValue = parseOptionalCurrency(row[11]) ?? total ?? 0;
+      return;
+    }
+
+    if (label.includes("valor total obra civil") && label.includes("interventoria")) {
+      const total = parseOptionalCurrency(row[5]);
+      const executed = parseOptionalCurrency(row[8]);
+      const pending = parseOptionalCurrency(row[11]);
+      if (total !== undefined) {
+        metadata.totalProjectValue = total;
+        metadata.totalBudgetValue = total;
+      }
+      if (executed !== undefined) metadata.totalExecutedValue = executed;
+      if (pending !== undefined) metadata.totalPendingValue = pending;
+      return;
+    }
+
+    if (label.includes("interventoria")) {
+      assignFinancialValues(metadata, "supervision", row);
+      metadata.supervisionPercent = parseOptionalNumber(row[3]);
+      metadata.supervisionExecutionMode = "Manual";
+    }
+  });
+
+  return metadata;
+}
+
+type FinancialPrefix =
+  | "directCost"
+  | "administration"
+  | "contingency"
+  | "utility"
+  | "subtotalBeforeVat"
+  | "utilityVat"
+  | "totalConstructionCost"
+  | "supervision";
+
+function assignFinancialValues(metadata: Partial<BudgetVersion>, prefix: FinancialPrefix, row: RawRow) {
+  const total = parseOptionalCurrency(row[5]);
+  const executed = parseOptionalCurrency(row[8]);
+  const pending = parseOptionalCurrency(row[11]);
+
+  const totalKey = (prefix + "Value") as keyof BudgetVersion;
+  const executedKey = (prefix + "ExecutedValue") as keyof BudgetVersion;
+  const pendingKey = (prefix + "PendingValue") as keyof BudgetVersion;
+
+  if (total !== undefined) metadata[totalKey] = total as never;
+  if (executed !== undefined) metadata[executedKey] = executed as never;
+  if (pending !== undefined) metadata[pendingKey] = pending as never;
+}
+
+function parseOptionalCurrency(value: unknown) {
+  if (String(value ?? "").trim() === "") return undefined;
+  const parsed = parseCurrency(value);
+  return Number.isNaN(parsed) ? undefined : parsed;
+}
+
+function parseOptionalNumber(value: unknown) {
+  if (String(value ?? "").trim() === "") return undefined;
+  const parsed = parseNumber(value);
+  if (Number.isNaN(parsed)) return undefined;
+  return parsed > 1 ? parsed : parsed * 100;
 }
 
 function isOfficialBudgetHeader(row: RawRow, columns: Partial<ColumnMap>) {

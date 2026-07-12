@@ -9,25 +9,17 @@ import { PageShell } from "@/components/PageShell";
 import { useProjectStore } from "@/lib/project-store";
 import { useState } from "react";
 
-const currencyFormatter = new Intl.NumberFormat("es-CO", {
-  style: "currency",
-  currency: "COP",
-  maximumFractionDigits: 0
-});
-
 export default function ProjectBudgetPage() {
   const { project, budgetItems, budgetVersion, manualProgressChanges, budgetQuantityChanges, importBudget, updateManualProgress, updateBudgetQuantity } = useProjectStore();
   const [activeTab, setActiveTab] = useState<"Oficial" | "Versiones">("Oficial");
-  const itemsTotalBudget = budgetItems.reduce((sum, item) => sum + item.totalValue, 0);
-  const officialTotalBudget = budgetVersion?.totalBudgetValue ?? itemsTotalBudget;
 
   return (
     <PageShell activeItem="Presupuesto" projectId={project.id} backHref={"/projects/" + project.id} backLabel="Volver al Centro de Control">
       <ModuleHeader
-        eyebrow="Modulo: Presupuesto"
+        eyebrow="Módulo: Presupuesto"
         title={project.name}
         meta={"Estado: " + project.status}
-        aside={<HeaderMetric label="Valor total presupuesto" value={currencyFormatter.format(officialTotalBudget)} detail="Fuente maestra para control fisico y financiero." />}
+        aside={<HeaderMetric label="Versión Oficial" value={budgetVersion ? "V" + budgetVersion.versionNumber : "Sin versión"} detail="Consolidado financiero del proyecto." />}
       />
 
       <div className="mt-6 flex flex-wrap gap-2 rounded-lg border border-dac-primary/10 bg-white p-2 shadow-sm">
@@ -50,7 +42,7 @@ export default function ProjectBudgetPage() {
           </div>
 
           <div className="mt-6">
-            <BudgetSummary items={budgetItems} />
+            <BudgetSummary budgetVersion={budgetVersion} />
           </div>
 
           <div className="mt-6">

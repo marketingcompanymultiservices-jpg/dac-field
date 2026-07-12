@@ -67,7 +67,8 @@ export function BudgetImportCard({ budgetVersion, onImportBudget }: BudgetImport
       importedBy: user?.email ?? "Usuario DAC",
       fileName: parsedBudget.fileName,
       totalActivities: parsedBudget.activities.length,
-      totalBudgetValue: parsedBudget.summary.totalBudgetValue
+      totalBudgetValue: parsedBudget.financialMetadata.totalProjectValue ?? parsedBudget.summary.totalBudgetValue,
+      ...parsedBudget.financialMetadata
     };
 
     try {
