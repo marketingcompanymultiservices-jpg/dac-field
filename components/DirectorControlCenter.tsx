@@ -28,6 +28,7 @@ export function DirectorControlCenter() {
     alerts,
     adminRoles,
     budgetItems,
+    budgetVersion,
     commitments,
     currentUser,
     dailyReports,
@@ -65,6 +66,9 @@ export function DirectorControlCenter() {
   const overdueCommitments = commitments.filter((commitment) => commitment.status === "Vencido" || (commitment.status !== "Cumplido" && commitment.dueDate < today)).length;
   const completedCommitments = commitments.filter((commitment) => commitment.status === "Cumplido").length;
   const lastResponsible = todayActivities[0]?.owner || project.resident;
+  const totalProjectValue = budgetVersion?.totalProjectValue ?? 0;
+  const totalExecutedValue = budgetVersion?.totalExecutedValue ?? 0;
+  const totalPendingValue = budgetVersion?.totalPendingValue ?? 0;
   const quickActionItems: QuickAction[] = [
     { href: "/projects/" + project.id + "/daily-report", label: "Registro Diario", permission: "Registro Diario" },
     { href: "/projects/" + project.id + "/direction-inspections", label: "Nueva Inspección", permission: "Inspecciones de Direccion", alert: true },
@@ -116,9 +120,9 @@ export function DirectorControlCenter() {
             <Metric label="Avance programado" value={programmedSummary.programmedProgress.toFixed(1) + " %"} tone="secondary" />
             <Metric label="Desviacion" value={programmedSummary.deviation.toFixed(1) + " %"} tone={programmedSummary.deviation < 0 ? "alert" : "secondary"} />
             <Metric label="Ultimo registro" value={latestReport?.date ?? "Sin registro"} tone="muted" />
-            <Metric label="Valor ejecutado" value={currencyFormatter.format(progressSummary.executedValue)} tone="secondary" />
-            <Metric label="Valor pendiente" value={currencyFormatter.format(progressSummary.pendingValue)} tone="muted" />
-            <Metric label="Proyecto activo" value={projects.length + " / " + projects.length} tone="primary" />
+            <Metric label="Valor total proyecto" value={currencyFormatter.format(totalProjectValue)} tone="primary" />
+            <Metric label="Valor ejecutado" value={currencyFormatter.format(totalExecutedValue)} tone="secondary" />
+            <Metric label="Valor pendiente" value={currencyFormatter.format(totalPendingValue)} tone="muted" />
             <Metric label="Ultima sincronizacion" value={formatSavedAt(lastSavedAt, isHydrated)} tone="muted" />
           </div>
         </Panel>
