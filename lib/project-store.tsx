@@ -104,7 +104,7 @@ type ProjectStoreValue = {
   removeDocument: (id: string) => void;
   addReport: (report: ProjectReport) => void;
   deleteDraftReport: (id: string) => void;
-  importBudget: (items: BudgetItem[], version: BudgetVersion) => Promise<void>;
+  importBudget: (items: BudgetItem[], version: BudgetVersion) => Promise<BudgetVersion>;
   updateManualProgress: (change: Omit<ManualProgressChange, "id" | "date" | "origin">) => void;
   updateBudgetQuantity: (change: Omit<BudgetQuantityChange, "id" | "date" | "origin">) => void;
   saveInitialSurvey: (items: BudgetItem[], metadata: InitialSurveyMetadata, observations?: Record<string, string>) => Promise<{ warning?: string }>;
@@ -768,10 +768,11 @@ export function ProjectStoreProvider({ children }: { children: ReactNode }) {
     async importBudget(items, version) {
       setShouldPersist(true);
       try {
-        await createDraftProjectBudgetInSupabase(project.id, items, {
+        const result = await createDraftProjectBudgetInSupabase(project.id, items, {
           ...version,
           status: "Borrador"
         });
+        return result.version;
       } catch (error) {
         console.error("[DAC Budget] No fue posible crear version Borrador del presupuesto en Supabase", error);
         setSystemEvents((current) => [

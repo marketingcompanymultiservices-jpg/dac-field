@@ -36,6 +36,10 @@ type BudgetVersionRow = {
   total_budget_value: number | string;
 };
 
+type DraftBudgetVersionRpcRow = BudgetVersionRow & {
+  inserted_items: number;
+};
+
 type SupabaseBudgetError = {
   code?: string;
   message?: string;
@@ -150,54 +154,38 @@ export async function replaceProjectBudgetInSupabase(projectId: string, items: B
 
 export async function createDraftProjectBudgetInSupabase(projectId: string, items: BudgetItem[], version: BudgetVersion) {
   if (!supabaseClient) throw new Error("Supabase no esta configurado.");
+  if (items.length === 0) throw new Error("La version Borrador debe contener al menos un item.");
 
   const diagnostics = await getSupabaseBudgetDiagnostics();
-  const versionPayload = toBudgetVersionRow(projectId, { ...version, status: "Borrador" });
+  const itemsPayload = items.map((item) => toBudgetItemRpcPayload(item));
+  const { data, error } = await supabaseClient.rpc("create_draft_project_budget_version", {
+    p_project_id: projectId,
+    p_file_name: version.fileName,
+    p_imported_by: version.importedBy,
+    p_total_activities: items.length,
+    p_total_budget_value: version.totalBudgetValue,
+    p_items: itemsPayload
+  });
 
-  const { data: savedVersion, error: versionError } = await supabaseClient
-    .from("project_budget_versions")
-    .insert(versionPayload)
-    .select("*")
-    .single();
-
-  if (versionError) {
-    throw buildBudgetOperationError("Error guardando version Borrador en project_budget_versions", versionError, {
+  if (error) {
+    throw buildBudgetOperationError("Error creando version Borrador transaccional en Supabase", error, {
       projectId,
-      payload: versionPayload,
+      fileName: version.fileName,
+      totalActivities: items.length,
+      totalBudgetValue: version.totalBudgetValue,
+      firstItemPayload: itemsPayload[0] ?? null,
       authenticatedUser: diagnostics.user,
       currentProfileRole: diagnostics.role
     });
   }
 
-  const draftVersion = mapBudgetVersionRow(savedVersion as BudgetVersionRow);
-  if (!draftVersion.id) {
-    throw new Error("La version Borrador fue creada sin id. No se insertaron actividades.");
+  const savedVersion = Array.isArray(data) ? data[0] : data;
+  if (!savedVersion) {
+    throw new Error("La RPC create_draft_project_budget_version no retorno la version creada.");
   }
 
-  const rows = items.map((item) => toBudgetItemRow(projectId, { ...item, budgetVersionId: draftVersion.id }));
-  let insertedCount = 0;
-  if (rows.length > 0) {
-    for (const chunk of chunkRows(rows, 500)) {
-      const { data, error: insertError } = await supabaseClient
-        .from("project_budget_items")
-        .insert(chunk)
-        .select("id");
-
-      if (insertError) {
-        throw buildBudgetOperationError("Error insertando actividades del presupuesto Borrador en project_budget_items", insertError, {
-          projectId,
-          budgetVersionId: draftVersion.id,
-          chunkSize: chunk.length,
-          insertedBeforeError: insertedCount,
-          firstChunkItemPayload: chunk[0] ?? null,
-          authenticatedUser: diagnostics.user,
-          currentProfileRole: diagnostics.role
-        });
-      }
-
-      insertedCount += data?.length ?? chunk.length;
-    }
-  }
+  const draftVersion = mapBudgetVersionRow(savedVersion as DraftBudgetVersionRpcRow);
+  const insertedCount = Number((savedVersion as DraftBudgetVersionRpcRow).inserted_items ?? 0) || 0;
 
   return {
     version: {
@@ -307,6 +295,28 @@ function toBudgetVersionRow(projectId: string, version: BudgetVersion) {
     file_name: version.fileName,
     total_activities: version.totalActivities,
     total_budget_value: version.totalBudgetValue
+  };
+}
+
+function toBudgetItemRpcPayload(item: BudgetItem) {
+  return {
+    item: item.item,
+    import_order: item.importOrder ?? 0,
+    budget_type: item.budgetType ?? (item.item.toUpperCase().trim().startsWith("OE") ? "Obra Extra" : "Presupuesto Base"),
+    description: item.description,
+    unit: item.unit,
+    quantity: item.quantity,
+    unit_value: item.unitValue,
+    total_value: item.totalValue,
+    chapter: item.chapter,
+    subchapter: item.subchapter,
+    initial_progress: item.initialProgress ?? 0,
+    executed_quantity: item.executedQuantity ?? 0,
+    executed_value: item.executedValue ?? 0,
+    pending_quantity: item.pendingQuantity ?? Math.max(item.quantity - (item.executedQuantity ?? 0), 0),
+    pending_value: item.pendingValue ?? Math.max(item.totalValue - (item.executedValue ?? 0), 0),
+    physical_progress_percent: item.physicalProgressPercent ?? 0,
+    financial_progress_percent: item.financialProgressPercent ?? 0
   };
 }
 

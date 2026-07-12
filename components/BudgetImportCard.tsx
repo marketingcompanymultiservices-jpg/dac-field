@@ -7,7 +7,7 @@ import type { BudgetItem, BudgetVersion } from "@/types";
 
 type BudgetImportCardProps = {
   budgetVersion: BudgetVersion | null;
-  onImportBudget: (items: BudgetItem[], version: BudgetVersion) => Promise<void>;
+  onImportBudget: (items: BudgetItem[], version: BudgetVersion) => Promise<BudgetVersion | void>;
 };
 
 const currencyFormatter = new Intl.NumberFormat("es-CO", {
@@ -74,8 +74,8 @@ export function BudgetImportCard({ budgetVersion, onImportBudget }: BudgetImport
       setIsImporting(true);
       setError("");
       setMessage("Guardando version Borrador en Supabase...");
-      await onImportBudget(parsedBudget.activities, nextVersion);
-      setLastImportedVersion(nextVersion);
+      const savedVersion = await onImportBudget(parsedBudget.activities, nextVersion);
+      setLastImportedVersion(savedVersion ?? nextVersion);
       setParsedBudget(null);
       setMessage("Version Borrador creada correctamente. El presupuesto Oficial no fue modificado.");
     } catch (currentError) {
@@ -201,12 +201,6 @@ export function BudgetImportCard({ budgetVersion, onImportBudget }: BudgetImport
 }
 
 function ValidationSummary({ parsedBudget }: { parsedBudget: ParsedBudgetExcel }) {
-  console.info("[DAC BudgetImport Diagnostic] Datos recibidos por la interfaz", {
-    activitiesLength: parsedBudget.activities.length,
-    totalValue: parsedBudget.summary.totalBudgetValue,
-    parsedBudgetTotalValue: (parsedBudget as ParsedBudgetExcel & { totalValue?: number }).totalValue ?? null
-  });
-
   const summary = parsedBudget.summary;
   const cards = [
     ["Nombre del archivo", summary.fileName],
