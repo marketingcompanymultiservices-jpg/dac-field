@@ -285,10 +285,10 @@ function PreviewTables({ parsedBudget }: { parsedBudget: ParsedBudgetExcel }) {
       <div>
         <h4 className="text-base font-black text-dac-primary">Primeras 20 actividades validas</h4>
         <div className="mt-3 overflow-x-auto">
-          <table className="w-full min-w-[920px] border-collapse text-left">
+          <table className="w-full min-w-[1180px] border-collapse text-left">
             <thead className="bg-dac-primary text-white">
               <tr>
-                {["FILA", "ITEM", "DESCRIPCION", "UND", "CANT", "VALOR TOTAL", "EJECUTADO", "POR EJECUTAR", "%", "CAPITULO", "SUBCAPITULO"].map((header) => (
+                {["FILA", "ITEM", "DESCRIPCION", "UND", "CANT", "VALOR UNIT.", "VALOR TOTAL", "CANT. EJEC.", "VALOR EJEC.", "CANT. POR EJEC.", "VALOR POR EJEC.", "%", "CAPITULO", "SUBCAPITULO"].map((header) => (
                   <th key={header} className="px-3 py-3 text-xs font-black uppercase">{header}</th>
                 ))}
               </tr>
@@ -301,9 +301,12 @@ function PreviewTables({ parsedBudget }: { parsedBudget: ParsedBudgetExcel }) {
                   <td className="px-3 py-3 text-sm font-semibold">{row.description}</td>
                   <td className="px-3 py-3 text-sm font-semibold">{row.unit}</td>
                   <td className="px-3 py-3 text-sm font-semibold">{numberFormatter.format(row.quantity)}</td>
+                  <td className="px-3 py-3 text-sm font-semibold">{currencyFormatter.format(row.unitValue)}</td>
                   <td className="px-3 py-3 text-sm font-semibold">{currencyFormatter.format(row.totalValue)}</td>
                   <td className="px-3 py-3 text-sm font-semibold">{numberFormatter.format(row.executedQuantity)}</td>
+                  <td className="px-3 py-3 text-sm font-semibold">{currencyFormatter.format(row.executedValue)}</td>
                   <td className="px-3 py-3 text-sm font-semibold">{numberFormatter.format(row.pendingQuantity)}</td>
+                  <td className="px-3 py-3 text-sm font-semibold">{currencyFormatter.format(row.pendingValue)}</td>
                   <td className="px-3 py-3 text-sm font-black text-dac-primary">{row.initialProgress.toFixed(1)} %</td>
                   <td className="px-3 py-3 text-sm font-semibold">{row.chapter}</td>
                   <td className="px-3 py-3 text-sm font-semibold">{row.subchapter}</td>

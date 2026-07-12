@@ -38,6 +38,7 @@ export type DiscardReason =
   | "Fila vacia"
   | "Falta unidad"
   | "Falta cantidad"
+  | "Falta valor unitario"
   | "Falta valor total"
   | "Es capitulo"
   | "Es subcapitulo"
@@ -88,6 +89,19 @@ type ColumnMap = {
 type RawRow = Array<string | number | boolean | Date | null | undefined>;
 
 const requiredColumns: Array<keyof ColumnMap> = ["item", "description", "unit", "quantity", "totalValue"];
+
+const officialBudgetColumnMap: ColumnMap = {
+  item: 0,
+  description: 1,
+  unit: 2,
+  quantity: 3,
+  unitValue: 4,
+  totalValue: 5,
+  executedQuantity: 7,
+  executedValue: 8,
+  pendingQuantity: 10,
+  pendingValue: 11
+};
 
 const headerAliases: Record<keyof ColumnMap, string[]> = {
   item: ["item", "itm"],
@@ -260,6 +274,7 @@ export function detectBudgetRows(rows: RawRow[], columns: ColumnMap, firstRowNum
     const hasDescription = Boolean(description);
     const hasQuantity = quantity > 0;
     const hasUnit = Boolean(unit);
+    const hasUnitValue = unitValue > 0;
     const hasTotalValue = totalValue > 0;
     const itemText = item || String(rowNumber);
 
@@ -272,7 +287,7 @@ export function detectBudgetRows(rows: RawRow[], columns: ColumnMap, firstRowNum
         return;
       }
 
-      if (/^\d+(\.\d+)+$/.test(itemText)) {
+      if (/^\d+([.,]\d+)+$/.test(itemText)) {
         subchapter = description;
         subchapters.add(subchapter);
         discardedRows.push({ rowNumber, item, description, reason: "Es subcapitulo" });
@@ -287,6 +302,11 @@ export function detectBudgetRows(rows: RawRow[], columns: ColumnMap, firstRowNum
 
     if (!hasQuantity) {
       discardedRows.push({ rowNumber, item, description, reason: "Falta cantidad" });
+      return;
+    }
+
+    if (!hasUnitValue) {
+      discardedRows.push({ rowNumber, item, description, reason: "Falta valor unitario" });
       return;
     }
 
@@ -362,7 +382,32 @@ function detectColumns(row: RawRow) {
     });
   });
 
+  if (isOfficialBudgetHeader(row, columns)) {
+    return officialBudgetColumnMap;
+  }
+
   return columns;
+}
+
+function isOfficialBudgetHeader(row: RawRow, columns: Partial<ColumnMap>) {
+  const normalizedCells = row.map((cell) => normalizeHeader(cell));
+  const hasBaseColumns = columns.item === 0 && columns.description === 1 && columns.unit === 2;
+  const hasExpectedPositions =
+    normalizedCells[3] === "cant." ||
+    normalizedCells[3] === "cant" ||
+    normalizedCells[3] === "cantidad";
+  const hasRepeatedExecutionBlock =
+    normalizedCells[7] === "cant." ||
+    normalizedCells[7] === "cant" ||
+    normalizedCells[7] === "cantidad" ||
+    normalizedCells[8] === "valor total";
+  const hasRepeatedPendingBlock =
+    normalizedCells[10] === "cant." ||
+    normalizedCells[10] === "cant" ||
+    normalizedCells[10] === "cantidad" ||
+    normalizedCells[11] === "valor total";
+
+  return hasBaseColumns && hasExpectedPositions && hasRepeatedExecutionBlock && hasRepeatedPendingBlock;
 }
 
 function getCell(row: RawRow, index: number) {
