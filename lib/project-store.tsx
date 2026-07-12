@@ -20,7 +20,7 @@ import { buildSmartAlerts } from "@/lib/alerts";
 import { buildActivityProductivity, calculateProductivitySummary } from "@/lib/productivity";
 import { clearAppState, loadAppState, saveAppState } from "@/lib/storage";
 import { recalculateProjectBudgetExecution } from "@/lib/supabase/progress-engine";
-import { loadProjectBudgetFromSupabase, replaceProjectBudgetInSupabase, updateProjectBudgetItemInSupabase } from "@/lib/supabase/budget";
+import { createDraftProjectBudgetInSupabase, loadProjectBudgetFromSupabase, replaceProjectBudgetInSupabase, updateProjectBudgetItemInSupabase } from "@/lib/supabase/budget";
 import { loadDailyReportBundleFromSupabase, saveDailyReportBundleToSupabase } from "@/lib/supabase/daily-reports";
 import { loadProjectInitialSurveyItems, saveProjectInitialSurveyItems } from "@/lib/supabase/initial-survey";
 import type {
@@ -768,23 +768,17 @@ export function ProjectStoreProvider({ children }: { children: ReactNode }) {
     async importBudget(items, version) {
       setShouldPersist(true);
       try {
-        const resetItems = items.map((item) => ({ ...item, executedQuantity: 0 }));
-        const remoteBudget = await replaceProjectBudgetInSupabase(project.id, resetItems, version);
-
-        setBudgetItems(remoteBudget.items);
-        setBudgetVersion(remoteBudget.version);
-        setInitialSurvey(null);
-        setActivities([]);
-        setPlanningItems([]);
-        setManualProgressChanges([]);
-        setBudgetQuantityChanges([]);
+        await createDraftProjectBudgetInSupabase(project.id, items, {
+          ...version,
+          status: "Borrador"
+        });
       } catch (error) {
-        console.error("[DAC Budget] No fue posible importar presupuesto en Supabase", error);
+        console.error("[DAC Budget] No fue posible crear version Borrador del presupuesto en Supabase", error);
         setSystemEvents((current) => [
           {
             id: "event-budget-import-error-" + Date.now(),
             time: new Date().toTimeString().slice(0, 5),
-            title: "No fue posible importar presupuesto en Supabase.",
+            title: "No fue posible crear presupuesto Borrador en Supabase.",
             description: error instanceof Error ? error.message : "Error desconocido al guardar presupuesto.",
             source: "Sistema"
           },

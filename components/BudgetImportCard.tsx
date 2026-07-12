@@ -57,13 +57,14 @@ export function BudgetImportCard({ budgetVersion, onImportBudget }: BudgetImport
       return;
     }
 
-    const confirmed = window.confirm("Esta importacion reemplazara el presupuesto maestro actual. Los avances calculados asociados al presupuesto anterior seran reiniciados. Desea continuar?");
+    const confirmed = window.confirm("Esta importacion creara una version Borrador del presupuesto. El presupuesto Oficial actual no sera modificado. Desea continuar?");
     if (!confirmed) return;
 
     const nextVersion: BudgetVersion = {
       versionNumber: (budgetVersion?.versionNumber ?? 0) + 1,
+      status: "Borrador",
       importedAt: new Date().toISOString(),
-      importedBy: "Jose Martinez",
+      importedBy: user?.email ?? "Usuario DAC",
       fileName: parsedBudget.fileName,
       totalActivities: parsedBudget.activities.length,
       totalBudgetValue: parsedBudget.summary.totalBudgetValue
@@ -72,13 +73,13 @@ export function BudgetImportCard({ budgetVersion, onImportBudget }: BudgetImport
     try {
       setIsImporting(true);
       setError("");
-      setMessage("Importando presupuesto en Supabase...");
+      setMessage("Guardando version Borrador en Supabase...");
       await onImportBudget(parsedBudget.activities, nextVersion);
       setLastImportedVersion(nextVersion);
       setParsedBudget(null);
-      setMessage("Presupuesto importado correctamente.");
+      setMessage("Version Borrador creada correctamente. El presupuesto Oficial no fue modificado.");
     } catch (currentError) {
-      setError(currentError instanceof Error ? currentError.message : "No fue posible importar el presupuesto en Supabase.");
+      setError(currentError instanceof Error ? currentError.message : "No fue posible crear la version Borrador en Supabase.");
       setMessage("");
     } finally {
       setIsImporting(false);
@@ -124,10 +125,10 @@ export function BudgetImportCard({ budgetVersion, onImportBudget }: BudgetImport
         </div>
 
         {budgetVersion && <BudgetVersionPanel title="Presupuesto actual" version={budgetVersion} />}
-        {lastImportedVersion && <BudgetVersionPanel title="Presupuesto importado correctamente" version={lastImportedVersion} highlight />}
+        {lastImportedVersion && <BudgetVersionPanel title="Borrador creado correctamente" version={lastImportedVersion} highlight />}
 
         {isReading && <p className="rounded-md bg-white px-4 py-3 text-sm font-bold text-dac-primary">Leyendo archivo Excel...</p>}
-        {isImporting && <p className="rounded-md bg-white px-4 py-3 text-sm font-bold text-dac-primary">Guardando y recargando presupuesto maestro desde Supabase...</p>}
+        {isImporting && <p className="rounded-md bg-white px-4 py-3 text-sm font-bold text-dac-primary">Guardando version Borrador en Supabase...</p>}
         {message && <p className="rounded-md bg-white px-4 py-3 text-sm font-bold text-dac-primary">{message}</p>}
         {error && <p className="rounded-md bg-dac-alert/15 px-4 py-3 text-sm font-black text-dac-alert">{error}</p>}
 
@@ -136,7 +137,7 @@ export function BudgetImportCard({ budgetVersion, onImportBudget }: BudgetImport
             <div className="flex flex-col gap-4">
               <div className="rounded-md bg-dac-alert/10 p-4">
                 <p className="text-sm font-black text-dac-alert">
-                  Esta importacion reemplazara el presupuesto maestro actual. Los avances calculados asociados al presupuesto anterior seran reiniciados.
+                  Esta importacion creara una version Borrador. El presupuesto Oficial actual, los avances, el Registro Diario y los reportes no seran modificados.
                 </p>
               </div>
 
@@ -152,7 +153,7 @@ export function BudgetImportCard({ budgetVersion, onImportBudget }: BudgetImport
                     disabled={!(parsedBudget.canImport || (parsedBudget.canImportWithAutoResolution && parsedBudget.duplicateItems.length > 0 && duplicatesResolved)) || isImporting}
                     className="focus-ring rounded-md bg-dac-primary px-5 py-3 font-black text-white hover:bg-dac-secondary disabled:cursor-not-allowed disabled:bg-dac-primary/35"
                   >
-                    {isImporting ? "Importando..." : "Confirmar importacion"}
+                    {isImporting ? "Guardando..." : "Crear Borrador"}
                   </button>
                   <button
                     type="button"
@@ -207,6 +208,7 @@ function ValidationSummary({ parsedBudget }: { parsedBudget: ParsedBudgetExcel }
     ["Actividades validas", numberFormatter.format(summary.validActivities)],
     ["Capitulos detectados", numberFormatter.format(summary.chaptersDetected)],
     ["Subcapitulos detectados", numberFormatter.format(summary.subchaptersDetected)],
+    ["Obras extras", numberFormatter.format(summary.extraWorksDetected)],
     ["Items duplicados", numberFormatter.format(parsedBudget.duplicateItems.length)],
     ["Filas descartadas", numberFormatter.format(summary.discardedRows)],
     ["Valor total detectado", currencyFormatter.format(summary.totalBudgetValue)],
@@ -286,7 +288,7 @@ function PreviewTables({ parsedBudget }: { parsedBudget: ParsedBudgetExcel }) {
           <table className="w-full min-w-[920px] border-collapse text-left">
             <thead className="bg-dac-primary text-white">
               <tr>
-                {["FILA", "ITEM", "DESCRIPCION", "UND", "CANT", "VALOR TOTAL", "%", "CAPITULO", "SUBCAPITULO"].map((header) => (
+                {["FILA", "ITEM", "DESCRIPCION", "UND", "CANT", "VALOR TOTAL", "EJECUTADO", "POR EJECUTAR", "%", "CAPITULO", "SUBCAPITULO"].map((header) => (
                   <th key={header} className="px-3 py-3 text-xs font-black uppercase">{header}</th>
                 ))}
               </tr>
@@ -300,6 +302,8 @@ function PreviewTables({ parsedBudget }: { parsedBudget: ParsedBudgetExcel }) {
                   <td className="px-3 py-3 text-sm font-semibold">{row.unit}</td>
                   <td className="px-3 py-3 text-sm font-semibold">{numberFormatter.format(row.quantity)}</td>
                   <td className="px-3 py-3 text-sm font-semibold">{currencyFormatter.format(row.totalValue)}</td>
+                  <td className="px-3 py-3 text-sm font-semibold">{numberFormatter.format(row.executedQuantity)}</td>
+                  <td className="px-3 py-3 text-sm font-semibold">{numberFormatter.format(row.pendingQuantity)}</td>
                   <td className="px-3 py-3 text-sm font-black text-dac-primary">{row.initialProgress.toFixed(1)} %</td>
                   <td className="px-3 py-3 text-sm font-semibold">{row.chapter}</td>
                   <td className="px-3 py-3 text-sm font-semibold">{row.subchapter}</td>
@@ -372,6 +376,10 @@ function formatColumnLabel(column: string) {
     quantity: "CANTIDAD",
     unitValue: "VALOR UNITARIO",
     totalValue: "VALOR TOTAL",
+    executedQuantity: "CANTIDAD EJECUTADA",
+    executedValue: "VALOR EJECUTADO",
+    pendingQuantity: "CANTIDAD POR EJECUTAR",
+    pendingValue: "VALOR POR EJECUTAR",
     progress: "AVANCE"
   };
 

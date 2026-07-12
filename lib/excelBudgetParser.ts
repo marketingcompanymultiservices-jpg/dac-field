@@ -10,6 +10,10 @@ export type ParsedBudgetRow = {
   quantity: number;
   unitValue: number;
   totalValue: number;
+  executedQuantity: number;
+  executedValue: number;
+  pendingQuantity: number;
+  pendingValue: number;
   initialProgress: number;
   chapter: string;
   subchapter: string;
@@ -47,6 +51,7 @@ export type BudgetValidationSummary = {
   validActivities: number;
   chaptersDetected: number;
   subchaptersDetected: number;
+  extraWorksDetected: number;
   discardedRows: number;
   totalBudgetValue: number;
   requiredColumns: Array<keyof ColumnMap>;
@@ -73,6 +78,10 @@ type ColumnMap = {
   quantity: number;
   totalValue: number;
   unitValue?: number;
+  executedQuantity?: number;
+  executedValue?: number;
+  pendingQuantity?: number;
+  pendingValue?: number;
   progress?: number;
 };
 
@@ -87,6 +96,10 @@ const headerAliases: Record<keyof ColumnMap, string[]> = {
   quantity: ["cant", "cant.", "cantidad", "qty"],
   unitValue: ["valor unit", "valor unit.", "valor unitario", "vlr unit", "vr unit", "precio unitario"],
   totalValue: ["valor total", "total", "vlr total", "vr total", "valor parcial"],
+  executedQuantity: ["cantidad ejecutada", "cant ejecutada", "cant. ejecutada", "ejecutado", "ejecutado acumulado", "cantidad ejecutada acumulada"],
+  executedValue: ["valor ejecutado", "vlr ejecutado", "vr ejecutado", "ejecutado valor"],
+  pendingQuantity: ["cantidad por ejecutar", "cant por ejecutar", "cant. por ejecutar", "saldo", "cantidad pendiente", "pendiente"],
+  pendingValue: ["valor por ejecutar", "vlr por ejecutar", "vr por ejecutar", "valor pendiente", "saldo valor"],
   progress: ["%", "porcentaje", "avance", "% avance", "porcentaje avance"]
 };
 
@@ -134,6 +147,11 @@ export async function parseBudgetExcel(file: File): Promise<ParsedBudgetExcel> {
     quantity: row.quantity,
     unitValue: row.unitValue,
     totalValue: row.totalValue,
+    executedQuantity: row.executedQuantity,
+    executedValue: row.executedValue,
+    pendingQuantity: row.pendingQuantity,
+    pendingValue: row.pendingValue,
+    budgetType: row.item.toUpperCase().trim().startsWith("OE") ? "Obra Extra" : "Presupuesto Base",
     chapter: row.chapter,
     subchapter: row.subchapter,
     initialProgress: row.initialProgress
@@ -146,6 +164,7 @@ export async function parseBudgetExcel(file: File): Promise<ParsedBudgetExcel> {
     validActivities: activities.length,
     chaptersDetected: detectedRows.chapters.size,
     subchaptersDetected: detectedRows.subchapters.size,
+    extraWorksDetected: activities.filter((item) => item.budgetType === "Obra Extra").length,
     discardedRows: detectedRows.discardedRows.length,
     totalBudgetValue,
     requiredColumns,
@@ -226,9 +245,13 @@ export function detectBudgetRows(rows: RawRow[], columns: ColumnMap, firstRowNum
     const quantity = parseNumber(row[columns.quantity]);
     const unitValue = columns.unitValue === undefined ? 0 : parseCurrency(row[columns.unitValue]);
     const totalValue = parseCurrency(row[columns.totalValue]);
+    const executedQuantity = columns.executedQuantity === undefined ? 0 : parseNumber(row[columns.executedQuantity]);
+    const executedValue = columns.executedValue === undefined ? 0 : parseCurrency(row[columns.executedValue]);
+    const pendingQuantity = columns.pendingQuantity === undefined ? Math.max(quantity - executedQuantity, 0) : parseNumber(row[columns.pendingQuantity]);
+    const pendingValue = columns.pendingValue === undefined ? Math.max(totalValue - executedValue, 0) : parseCurrency(row[columns.pendingValue]);
     const initialProgress = columns.progress === undefined ? 0 : parseProgress(row[columns.progress]);
 
-    if ([quantity, unitValue, totalValue, initialProgress].some((value) => Number.isNaN(value))) {
+    if ([quantity, unitValue, totalValue, executedQuantity, executedValue, pendingQuantity, pendingValue, initialProgress].some((value) => Number.isNaN(value))) {
       discardedRows.push({ rowNumber, item, description, reason: "Valor invalido" });
       warnings.push("Fila " + rowNumber + ": contiene valores numericos invalidos.");
       return;
@@ -281,6 +304,10 @@ export function detectBudgetRows(rows: RawRow[], columns: ColumnMap, firstRowNum
       quantity,
       unitValue,
       totalValue,
+      executedQuantity,
+      executedValue,
+      pendingQuantity,
+      pendingValue,
       initialProgress,
       chapter,
       subchapter
@@ -374,6 +401,10 @@ function formatColumnName(column: keyof ColumnMap) {
     quantity: "CANTIDAD",
     unitValue: "VALOR UNITARIO",
     totalValue: "VALOR TOTAL",
+    executedQuantity: "CANTIDAD EJECUTADA",
+    executedValue: "VALOR EJECUTADO",
+    pendingQuantity: "CANTIDAD POR EJECUTAR",
+    pendingValue: "VALOR POR EJECUTAR",
     progress: "AVANCE"
   };
   return names[column];

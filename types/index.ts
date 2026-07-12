@@ -118,6 +118,7 @@ export type BudgetQuantityChange = {
 
 export type BudgetItem = {
   id?: string;
+  budgetVersionId?: string;
   item: string;
   importOrder?: number;
   budgetType?: string;
@@ -132,12 +133,15 @@ export type BudgetItem = {
   executedQuantity?: number;
   executedValue?: number;
   pendingValue?: number;
+  pendingQuantity?: number;
   physicalProgressPercent?: number;
   financialProgressPercent?: number;
 };
 
 export type BudgetVersion = {
+  id?: string;
   versionNumber: number;
+  status?: "Borrador" | "En revision" | "Oficial" | "Archivada";
   importedAt: string;
   importedBy: string;
   fileName: string;

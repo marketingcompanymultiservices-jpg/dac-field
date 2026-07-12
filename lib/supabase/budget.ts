@@ -4,6 +4,7 @@ import type { BudgetItem, BudgetVersion } from "@/types";
 type BudgetItemRow = {
   id: string;
   project_id: string;
+  budget_version_id?: string | null;
   item: string;
   import_order: number | string | null;
   budget_type?: string | null;
@@ -18,13 +19,16 @@ type BudgetItemRow = {
   executed_quantity: number | string | null;
   executed_value?: number | string | null;
   pending_value?: number | string | null;
+  pending_quantity?: number | string | null;
   physical_progress_percent?: number | string | null;
   financial_progress_percent?: number | string | null;
 };
 
 type BudgetVersionRow = {
+  id?: string;
   project_id: string;
   version_number: number;
+  status?: "Borrador" | "En revision" | "Oficial" | "Archivada";
   imported_at: string;
   imported_by: string;
   file_name: string;
@@ -41,25 +45,34 @@ type SupabaseBudgetError = {
 
 export async function loadProjectBudgetFromSupabase(projectId: string) {
   if (!supabaseClient) throw new Error("Supabase no esta configurado.");
+  const { data: versionRow, error: versionError } = await supabaseClient
+    .from("project_budget_versions")
+    .select("*")
+    .eq("project_id", projectId)
+    .eq("status", "Oficial")
+    .maybeSingle();
+
+  if (versionError) {
+    throw buildBudgetOperationError("Error leyendo version oficial en project_budget_versions", versionError);
+  }
+
+  if (!versionRow) {
+    return {
+      items: [],
+      version: null
+    };
+  }
+
   const budgetItemsResponse = await supabaseClient
     .from("project_budget_items")
     .select("*", { count: "exact" })
     .eq("project_id", projectId)
+    .eq("budget_version_id", (versionRow as BudgetVersionRow).id)
     .order("item", { ascending: true });
   const { data: itemRows, error: itemsError } = budgetItemsResponse;
 
   if (itemsError) {
     throw buildBudgetOperationError("Error leyendo project_budget_items", itemsError);
-  }
-
-  const { data: versionRow, error: versionError } = await supabaseClient
-    .from("project_budget_versions")
-    .select("*")
-    .eq("project_id", projectId)
-    .maybeSingle();
-
-  if (versionError) {
-    throw buildBudgetOperationError("Error leyendo project_budget_versions", versionError);
   }
 
   const items = ((itemRows ?? []) as BudgetItemRow[]).map(mapBudgetItemRow);
@@ -135,6 +148,66 @@ export async function replaceProjectBudgetInSupabase(projectId: string, items: B
   return remoteBudget;
 }
 
+export async function createDraftProjectBudgetInSupabase(projectId: string, items: BudgetItem[], version: BudgetVersion) {
+  if (!supabaseClient) throw new Error("Supabase no esta configurado.");
+
+  const diagnostics = await getSupabaseBudgetDiagnostics();
+  const versionPayload = toBudgetVersionRow(projectId, { ...version, status: "Borrador" });
+
+  const { data: savedVersion, error: versionError } = await supabaseClient
+    .from("project_budget_versions")
+    .insert(versionPayload)
+    .select("*")
+    .single();
+
+  if (versionError) {
+    throw buildBudgetOperationError("Error guardando version Borrador en project_budget_versions", versionError, {
+      projectId,
+      payload: versionPayload,
+      authenticatedUser: diagnostics.user,
+      currentProfileRole: diagnostics.role
+    });
+  }
+
+  const draftVersion = mapBudgetVersionRow(savedVersion as BudgetVersionRow);
+  if (!draftVersion.id) {
+    throw new Error("La version Borrador fue creada sin id. No se insertaron actividades.");
+  }
+
+  const rows = items.map((item) => toBudgetItemRow(projectId, { ...item, budgetVersionId: draftVersion.id }));
+  let insertedCount = 0;
+  if (rows.length > 0) {
+    for (const chunk of chunkRows(rows, 500)) {
+      const { data, error: insertError } = await supabaseClient
+        .from("project_budget_items")
+        .insert(chunk)
+        .select("id");
+
+      if (insertError) {
+        throw buildBudgetOperationError("Error insertando actividades del presupuesto Borrador en project_budget_items", insertError, {
+          projectId,
+          budgetVersionId: draftVersion.id,
+          chunkSize: chunk.length,
+          insertedBeforeError: insertedCount,
+          firstChunkItemPayload: chunk[0] ?? null,
+          authenticatedUser: diagnostics.user,
+          currentProfileRole: diagnostics.role
+        });
+      }
+
+      insertedCount += data?.length ?? chunk.length;
+    }
+  }
+
+  return {
+    version: {
+      ...draftVersion,
+      totalActivities: insertedCount
+    },
+    insertedItems: insertedCount
+  };
+}
+
 export async function updateProjectBudgetItemInSupabase(projectId: string, itemCode: string, update: Partial<BudgetItem>) {
   if (!supabaseClient) throw new Error("Supabase no esta configurado.");
 
@@ -166,6 +239,7 @@ export async function updateProjectBudgetItemInSupabase(projectId: string, itemC
 function mapBudgetItemRow(row: BudgetItemRow): BudgetItem {
   return {
     id: row.id,
+    budgetVersionId: row.budget_version_id ?? undefined,
     item: row.item,
     importOrder: Number(row.import_order ?? 0) || 0,
     budgetType: row.budget_type ?? undefined,
@@ -180,6 +254,7 @@ function mapBudgetItemRow(row: BudgetItemRow): BudgetItem {
     executedQuantity: Number(row.executed_quantity ?? 0) || 0,
     executedValue: Number(row.executed_value ?? 0) || 0,
     pendingValue: Number(row.pending_value ?? 0) || 0,
+    pendingQuantity: Number(row.pending_quantity ?? 0) || 0,
     physicalProgressPercent: Number(row.physical_progress_percent ?? 0) || 0,
     financialProgressPercent: Number(row.financial_progress_percent ?? 0) || 0
   } as BudgetItem;
@@ -187,7 +262,9 @@ function mapBudgetItemRow(row: BudgetItemRow): BudgetItem {
 
 function mapBudgetVersionRow(row: BudgetVersionRow): BudgetVersion {
   return {
+    id: row.id,
     versionNumber: row.version_number,
+    status: row.status,
     importedAt: row.imported_at,
     importedBy: row.imported_by,
     fileName: row.file_name,
@@ -199,8 +276,10 @@ function mapBudgetVersionRow(row: BudgetVersionRow): BudgetVersion {
 function toBudgetItemRow(projectId: string, item: BudgetItem) {
   return {
     project_id: projectId,
+    budget_version_id: item.budgetVersionId,
     item: item.item,
     import_order: item.importOrder ?? 0,
+    budget_type: item.budgetType ?? (item.item.toUpperCase().trim().startsWith("OE") ? "Obra Extra" : "Presupuesto Base"),
     description: item.description,
     unit: item.unit,
     quantity: item.quantity,
@@ -209,7 +288,12 @@ function toBudgetItemRow(projectId: string, item: BudgetItem) {
     chapter: item.chapter,
     subchapter: item.subchapter,
     initial_progress: item.initialProgress ?? 0,
-    executed_quantity: item.executedQuantity ?? 0
+    executed_quantity: item.executedQuantity ?? 0,
+    executed_value: item.executedValue ?? 0,
+    pending_quantity: item.pendingQuantity ?? Math.max(item.quantity - (item.executedQuantity ?? 0), 0),
+    pending_value: item.pendingValue ?? Math.max(item.totalValue - (item.executedValue ?? 0), 0),
+    physical_progress_percent: item.physicalProgressPercent ?? 0,
+    financial_progress_percent: item.financialProgressPercent ?? 0
   };
 }
 
@@ -217,6 +301,7 @@ function toBudgetVersionRow(projectId: string, version: BudgetVersion) {
   return {
     project_id: projectId,
     version_number: version.versionNumber,
+    status: version.status ?? "Oficial",
     imported_at: version.importedAt,
     imported_by: version.importedBy,
     file_name: version.fileName,
