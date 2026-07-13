@@ -125,6 +125,10 @@ export function BudgetSummary({ budgetVersion }: { budgetVersion: BudgetVersion 
         ))}
       </div>
 
+      <div className="rounded-lg border border-dac-alert/30 bg-dac-alert/10 px-4 py-3 text-sm font-black uppercase text-dac-alert">
+        DIAGNÓSTICO GRÁFICOS ACTIVO
+      </div>
+
       <div className="grid gap-5 xl:grid-cols-[1.18fr_0.82fr]">
         <FinancialChartCard title="Ejecución por concepto">
           <div className="h-[430px] min-w-0">
