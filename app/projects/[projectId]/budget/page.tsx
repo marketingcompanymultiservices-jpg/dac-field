@@ -1,7 +1,7 @@
 "use client";
 
 import { BudgetImportCard } from "@/components/BudgetImportCard";
-import { BudgetSummary } from "@/components/BudgetSummary";
+import { BudgetFinancialSummary } from "@/components/BudgetFinancialSummary";
 import { BudgetTable } from "@/components/BudgetTable";
 import { BudgetVersionsPanel } from "@/components/BudgetVersionsPanel";
 import { HeaderMetric, ModuleHeader } from "@/components/ModuleHeader";
@@ -42,7 +42,7 @@ export default function ProjectBudgetPage() {
           </div>
 
           <div className="mt-6">
-            <BudgetSummary budgetVersion={budgetVersion} />
+            <BudgetFinancialSummary budgetVersion={budgetVersion} />
           </div>
 
           <div className="mt-6">

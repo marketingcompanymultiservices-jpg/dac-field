@@ -20,7 +20,7 @@ type FinancialRow = {
 
 const chartColors = ["#004C6D", "#00B2D7", "#6C8794", "#D78C37", "#93A8B0", "#4B6874", "#B9C6CB"];
 
-export function BudgetSummary({ budgetVersion }: { budgetVersion: BudgetVersion | null }) {
+export function BudgetFinancialSummary({ budgetVersion }: { budgetVersion: BudgetVersion | null }) {
   const conceptRows: FinancialRow[] = [
     {
       label: "Costo Directo",
