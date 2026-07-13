@@ -2,7 +2,6 @@
 
 import type { BudgetVersion } from "@/types";
 import type { ReactNode } from "react";
-import { useEffect, useState } from "react";
 import { Bar, BarChart, CartesianGrid, Cell, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 
 const currencyFormatter = new Intl.NumberFormat("es-CO", {
@@ -22,7 +21,6 @@ type FinancialRow = {
 const chartColors = ["#004C6D", "#00B2D7", "#6C8794", "#D78C37", "#93A8B0", "#4B6874", "#B9C6CB"];
 
 export function BudgetSummary({ budgetVersion }: { budgetVersion: BudgetVersion | null }) {
-  const [chartsReady, setChartsReady] = useState(false);
   const conceptRows: FinancialRow[] = [
     {
       label: "Costo Directo",
@@ -107,10 +105,6 @@ export function BudgetSummary({ budgetVersion }: { budgetVersion: BudgetVersion 
 
   const totalProjectValue = budgetVersion?.totalProjectValue ?? 0;
 
-  useEffect(() => {
-    setChartsReady(true);
-  }, []);
-
   return (
     <section className="grid gap-7">
       <div className="grid gap-5 lg:grid-cols-3">
@@ -125,27 +119,19 @@ export function BudgetSummary({ budgetVersion }: { budgetVersion: BudgetVersion 
         ))}
       </div>
 
-      <div className="rounded-lg border border-dac-alert/30 bg-dac-alert/10 px-4 py-3 text-sm font-black uppercase text-dac-alert">
-        DIAGNÓSTICO GRÁFICOS ACTIVO
-      </div>
-
       <div className="grid gap-5 xl:grid-cols-[1.18fr_0.82fr]">
         <FinancialChartCard title="Ejecución por concepto">
           <div className="h-[430px] min-w-0">
-            {chartsReady ? (
-              <ResponsiveContainer width="100%" height={430}>
-                <BarChart data={conceptRows} layout="vertical" margin={{ top: 6, right: 22, bottom: 6, left: 18 }} barGap={4}>
-                  <CartesianGrid horizontal={false} stroke="#E6EEF1" strokeDasharray="3 3" />
-                  <XAxis type="number" hide />
-                  <YAxis type="category" dataKey="label" width={132} tickLine={false} axisLine={false} tick={{ fill: "#131413", fontSize: 12, fontWeight: 600 }} />
-                  <Tooltip cursor={{ fill: "rgba(0, 76, 109, 0.05)" }} content={<ExecutionTooltip />} />
-                  <Bar dataKey="executed" stackId="budget" fill="#004C6D" radius={[5, 0, 0, 5]} isAnimationActive={false} />
-                  <Bar dataKey="pending" stackId="budget" fill="#D8E3E7" radius={[0, 5, 5, 0]} isAnimationActive={false} />
-                </BarChart>
-              </ResponsiveContainer>
-            ) : (
-              <ChartSkeleton />
-            )}
+            <ResponsiveContainer width="100%" height={430}>
+              <BarChart data={conceptRows} layout="vertical" margin={{ top: 6, right: 22, bottom: 6, left: 18 }} barGap={4}>
+                <CartesianGrid horizontal={false} stroke="#E6EEF1" strokeDasharray="3 3" />
+                <XAxis type="number" hide />
+                <YAxis type="category" dataKey="label" width={132} tickLine={false} axisLine={false} tick={{ fill: "#131413", fontSize: 12, fontWeight: 600 }} />
+                <Tooltip cursor={{ fill: "rgba(0, 76, 109, 0.05)" }} content={<ExecutionTooltip />} />
+                <Bar dataKey="executed" stackId="budget" fill="#004C6D" radius={[5, 0, 0, 5]} isAnimationActive={false} />
+                <Bar dataKey="pending" stackId="budget" fill="#D8E3E7" radius={[0, 5, 5, 0]} isAnimationActive={false} />
+              </BarChart>
+            </ResponsiveContainer>
           </div>
           <div className="mt-4 flex flex-wrap gap-4 text-xs font-semibold text-dac-text/65">
             <LegendDot color="#004C6D" label="Ejecutado" />
@@ -155,30 +141,26 @@ export function BudgetSummary({ budgetVersion }: { budgetVersion: BudgetVersion 
 
         <FinancialChartCard title="Composición del presupuesto">
           <div className="relative h-[350px] min-w-0">
-            {chartsReady ? (
-              <ResponsiveContainer width="100%" height={350}>
-                <PieChart>
-                  <Pie
-                    data={conceptRows}
-                    dataKey="total"
-                    nameKey="label"
-                    innerRadius="62%"
-                    outerRadius="86%"
-                    paddingAngle={1}
-                    stroke="#FFFFFF"
-                    strokeWidth={3}
-                    isAnimationActive={false}
-                  >
-                    {conceptRows.map((entry, index) => (
-                      <Cell key={entry.label} fill={chartColors[index % chartColors.length]} />
-                    ))}
-                  </Pie>
-                  <Tooltip content={<CompositionTooltip totalProjectValue={totalProjectValue} />} />
-                </PieChart>
-              </ResponsiveContainer>
-            ) : (
-              <ChartSkeleton />
-            )}
+            <ResponsiveContainer width="100%" height={350}>
+              <PieChart>
+                <Pie
+                  data={conceptRows}
+                  dataKey="total"
+                  nameKey="label"
+                  innerRadius="62%"
+                  outerRadius="86%"
+                  paddingAngle={1}
+                  stroke="#FFFFFF"
+                  strokeWidth={3}
+                  isAnimationActive={false}
+                >
+                  {conceptRows.map((entry, index) => (
+                    <Cell key={entry.label} fill={chartColors[index % chartColors.length]} />
+                  ))}
+                </Pie>
+                <Tooltip content={<CompositionTooltip totalProjectValue={totalProjectValue} />} />
+              </PieChart>
+            </ResponsiveContainer>
             <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
               <div className="max-w-52 text-center">
                 <p className="text-[10px] font-black uppercase text-dac-text/45">Valor total proyecto</p>
@@ -235,10 +217,6 @@ function FinancialChartCard({ title, children }: { title: string; children: Reac
       <div className="mt-4">{children}</div>
     </article>
   );
-}
-
-function ChartSkeleton() {
-  return <div className="h-full w-full rounded-lg bg-dac-primary/[0.03]" />;
 }
 
 function ExecutionTooltip({ active, payload }: { active?: boolean; payload?: Array<{ payload: FinancialRow }> }) {
