@@ -107,21 +107,33 @@ export function BudgetFinancialSummary({ budgetVersion }: { budgetVersion: Budge
 
   return (
     <section className="grid gap-7">
-      <div className="grid gap-5 lg:grid-cols-3">
+      <div className="grid gap-4 md:gap-5 lg:grid-cols-3">
         {cards.map((card) => (
           <article
             key={card.label}
-            className="flex min-h-36 flex-col justify-between rounded-lg border border-dac-primary/10 bg-white p-6 shadow-sm ring-1 ring-dac-primary/[0.03]"
+            className="flex min-h-28 flex-col justify-between rounded-lg border border-dac-primary/10 bg-white p-4 shadow-sm ring-1 ring-dac-primary/[0.03] md:min-h-36 md:p-6"
           >
             <p className="text-[11px] font-extrabold uppercase text-dac-text/45">{card.label}</p>
-            <p className="mt-5 text-2xl font-black text-dac-primary md:text-3xl xl:text-[34px]">{currencyFormatter.format(card.value)}</p>
+            <p className="mt-4 break-words text-xl font-black text-dac-primary sm:text-2xl md:mt-5 md:text-3xl xl:text-[34px]">{currencyFormatter.format(card.value)}</p>
           </article>
         ))}
       </div>
 
       <div className="grid gap-5 xl:grid-cols-[1.18fr_0.82fr]">
         <FinancialChartCard title="Ejecución por concepto">
-          <div className="h-[430px] min-w-0">
+          <div className="h-[340px] min-w-0 md:hidden">
+            <ResponsiveContainer width="100%" height={340}>
+              <BarChart data={conceptRows} layout="vertical" margin={{ top: 4, right: 8, bottom: 4, left: 0 }} barGap={3}>
+                <CartesianGrid horizontal={false} stroke="#E6EEF1" strokeDasharray="3 3" />
+                <XAxis type="number" hide />
+                <YAxis type="category" dataKey="label" width={104} tickLine={false} axisLine={false} tick={{ fill: "#131413", fontSize: 10, fontWeight: 600 }} />
+                <Tooltip cursor={{ fill: "rgba(0, 76, 109, 0.05)" }} content={<ExecutionTooltip />} />
+                <Bar dataKey="executed" stackId="budget" fill="#004C6D" radius={[4, 0, 0, 4]} isAnimationActive={false} />
+                <Bar dataKey="pending" stackId="budget" fill="#D8E3E7" radius={[0, 4, 4, 0]} isAnimationActive={false} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+          <div className="hidden h-[430px] min-w-0 md:block">
             <ResponsiveContainer width="100%" height={430}>
               <BarChart data={conceptRows} layout="vertical" margin={{ top: 6, right: 22, bottom: 6, left: 18 }} barGap={4}>
                 <CartesianGrid horizontal={false} stroke="#E6EEF1" strokeDasharray="3 3" />
@@ -140,7 +152,30 @@ export function BudgetFinancialSummary({ budgetVersion }: { budgetVersion: Budge
         </FinancialChartCard>
 
         <FinancialChartCard title="Composición del presupuesto">
-          <div className="relative h-[350px] min-w-0">
+          <div className="relative h-[260px] min-w-0 md:hidden">
+            <ResponsiveContainer width="100%" height={260}>
+              <PieChart>
+                <Pie
+                  data={conceptRows}
+                  dataKey="total"
+                  nameKey="label"
+                  innerRadius="56%"
+                  outerRadius="76%"
+                  paddingAngle={1}
+                  stroke="#FFFFFF"
+                  strokeWidth={2}
+                  isAnimationActive={false}
+                >
+                  {conceptRows.map((entry, index) => (
+                    <Cell key={entry.label} fill={chartColors[index % chartColors.length]} />
+                  ))}
+                </Pie>
+                <Tooltip content={<CompositionTooltip totalProjectValue={totalProjectValue} />} />
+              </PieChart>
+            </ResponsiveContainer>
+            <DonutCenterValue totalProjectValue={totalProjectValue} />
+          </div>
+          <div className="relative hidden h-[350px] min-w-0 md:block">
             <ResponsiveContainer width="100%" height={350}>
               <PieChart>
                 <Pie
@@ -161,14 +196,9 @@ export function BudgetFinancialSummary({ budgetVersion }: { budgetVersion: Budge
                 <Tooltip content={<CompositionTooltip totalProjectValue={totalProjectValue} />} />
               </PieChart>
             </ResponsiveContainer>
-            <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-              <div className="max-w-52 text-center">
-                <p className="text-[10px] font-black uppercase text-dac-text/45">Valor total proyecto</p>
-                <p className="mt-2 text-lg font-black text-dac-primary sm:text-xl">{currencyFormatter.format(totalProjectValue)}</p>
-              </div>
-            </div>
+            <DonutCenterValue totalProjectValue={totalProjectValue} />
           </div>
-          <div className="mt-4 grid gap-2 sm:grid-cols-2">
+          <div className="mt-3 grid grid-cols-2 gap-x-3 gap-y-1.5 md:mt-4 md:gap-y-2">
             {conceptRows.map((row, index) => (
               <LegendDot key={row.label} color={chartColors[index % chartColors.length]} label={row.label} />
             ))}
@@ -176,7 +206,13 @@ export function BudgetFinancialSummary({ budgetVersion }: { budgetVersion: Budge
         </FinancialChartCard>
       </div>
 
-      <div className="rounded-lg border border-dac-primary/10 bg-white shadow-sm ring-1 ring-dac-primary/[0.03]">
+      <div className="grid gap-3 md:hidden">
+        {rows.map((row) => (
+          <MobileFinancialCard key={row.label} row={row} />
+        ))}
+      </div>
+
+      <div className="hidden rounded-lg border border-dac-primary/10 bg-white shadow-sm ring-1 ring-dac-primary/[0.03] md:block">
         <div className="overflow-x-auto">
           <table className="min-w-full table-fixed border-collapse text-left">
             <colgroup>
@@ -212,10 +248,43 @@ export function BudgetFinancialSummary({ budgetVersion }: { budgetVersion: Budge
 
 function FinancialChartCard({ title, children }: { title: string; children: ReactNode }) {
   return (
-    <article className="min-w-0 rounded-lg border border-dac-primary/10 bg-white p-5 shadow-sm ring-1 ring-dac-primary/[0.03]">
+    <article className="min-w-0 rounded-lg border border-dac-primary/10 bg-white p-4 shadow-sm ring-1 ring-dac-primary/[0.03] md:p-5">
       <h3 className="text-sm font-black uppercase text-dac-primary">{title}</h3>
       <div className="mt-4">{children}</div>
     </article>
+  );
+}
+
+function DonutCenterValue({ totalProjectValue }: { totalProjectValue: number }) {
+  return (
+    <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+      <div className="max-w-40 text-center md:max-w-52">
+        <p className="text-[9px] font-black uppercase text-dac-text/45 md:text-[10px]">Valor total proyecto</p>
+        <p className="mt-1 break-words text-sm font-black text-dac-primary sm:text-base md:mt-2 md:text-xl">{currencyFormatter.format(totalProjectValue)}</p>
+      </div>
+    </div>
+  );
+}
+
+function MobileFinancialCard({ row }: { row: FinancialRow }) {
+  return (
+    <article className={getMobileCardClass(row.variant)}>
+      <h3 className={getMobileTitleClass(row.variant)}>{row.label}</h3>
+      <div className="mt-3 grid gap-2">
+        <MobileValue label="Presupuesto total" value={currencyFormatter.format(row.total)} />
+        <MobileValue label="Ejecutado" value={currencyFormatter.format(row.executed)} />
+        <MobileValue label="Por ejecutar" value={currencyFormatter.format(row.pending)} />
+      </div>
+    </article>
+  );
+}
+
+function MobileValue({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex items-start justify-between gap-3 border-t border-dac-primary/[0.06] pt-2">
+      <span className="text-xs font-bold text-dac-text/55">{label}</span>
+      <span className="min-w-0 break-words text-right text-sm font-black text-dac-text">{value}</span>
+    </div>
   );
 }
 
@@ -265,11 +334,23 @@ function TooltipLine({ label, value }: { label: string; value: string }) {
 
 function LegendDot({ color, label }: { color: string; label: string }) {
   return (
-    <span className="inline-flex items-center gap-2 text-xs font-semibold text-dac-text/65">
-      <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: color }} />
+    <span className="inline-flex min-w-0 items-center gap-2 text-[11px] font-semibold leading-4 text-dac-text/65 md:text-xs">
+      <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: color }} />
       {label}
     </span>
   );
+}
+
+function getMobileCardClass(variant?: FinancialRow["variant"]) {
+  if (variant === "final") return "rounded-lg border border-dac-primary/20 bg-dac-primary/[0.04] p-4 shadow-sm";
+  if (variant === "subtotal") return "rounded-lg border border-dac-primary/10 bg-dac-primary/[0.02] p-4 shadow-sm";
+  return "rounded-lg border border-dac-primary/10 bg-white p-4 shadow-sm";
+}
+
+function getMobileTitleClass(variant?: FinancialRow["variant"]) {
+  if (variant === "final") return "text-sm font-black uppercase text-dac-primary";
+  if (variant === "subtotal") return "text-sm font-extrabold text-dac-text";
+  return "text-sm font-bold text-dac-text/80";
 }
 
 function getRowClass(variant?: FinancialRow["variant"]) {
