@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/components/AuthProvider";
 import { deleteImage, getImage, saveImage } from "@/lib/imageStorage";
@@ -98,7 +97,6 @@ export function DailyReportWizard({ projectName }: { projectName: string }) {
     progressItems,
     photos,
     commitments,
-    dailyReports,
     addDailyActivity,
     addDailyCommitment,
     addDailyPhotos,
@@ -358,7 +356,7 @@ export function DailyReportWizard({ projectName }: { projectName: string }) {
     setIsSavingReport(true);
     setMessage("");
     try {
-      await saveDailyReport(
+      const saveResult = await saveDailyReport(
         {
           date: getReportDate(),
           time: getReportTime(),
@@ -388,7 +386,7 @@ export function DailyReportWizard({ projectName }: { projectName: string }) {
       setPhotoPreviews({});
       setPhotoMessage("");
       setCurrentStep(0);
-      setMessage("Registro Diario guardado correctamente.");
+      setMessage(saveResult.progressConsolidationWarning ?? "Registro Diario guardado correctamente.");
     } catch (error) {
       logDailyReportClientError(error, "persistReport");
       setMessage("No fue posible guardar el Registro Diario en Supabase. " + (error instanceof Error ? error.message : "code: DAC_UNKNOWN | message: Error desconocido | details: Sin detalles | hint: Revisa consola."));
@@ -414,26 +412,6 @@ export function DailyReportWizard({ projectName }: { projectName: string }) {
       </div>
 
       <div className="p-4 sm:p-6">
-        {dailyReports.length > 0 && (
-          <div className="mb-5 rounded-lg border border-dac-primary/10 bg-dac-primary/[0.03] p-4">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <p className="text-sm font-black uppercase text-dac-secondary">Reporte diario</p>
-                <p className="mt-1 text-sm font-semibold text-dac-text/70">Ultimo registro guardado: {dailyReports[0].date} - {dailyReports[0].status}</p>
-              </div>
-              <Link href={"/projects/" + dailyReports[0].projectId + "/daily-report/" + dailyReports[0].id} className="focus-ring rounded-md bg-dac-primary px-4 py-3 text-center text-sm font-black text-white hover:bg-dac-secondary">
-                Ver reporte diario
-              </Link>
-            </div>
-          </div>
-        )}
-        {dailyReports.length === 0 && (
-          <div className="mb-5 rounded-lg border border-dac-primary/10 bg-white p-4">
-            <p className="text-sm font-black uppercase text-dac-secondary">Reportes diarios</p>
-            <p className="mt-1 text-sm font-semibold text-dac-text/70">No se encontraron reportes para este proyecto en Supabase.</p>
-          </div>
-        )}
-
         {currentStep === 0 && (
           <div className="grid gap-4 sm:grid-cols-2">
             <Field label="Fecha" type="date" value={report.date} onChange={(value) => updateReport("date", value)} />

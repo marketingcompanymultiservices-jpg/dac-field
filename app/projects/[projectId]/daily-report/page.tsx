@@ -1,6 +1,7 @@
 "use client";
 
 import { DailyReportWizard } from "@/components/DailyReportWizard";
+import { MyDailyReportsPanel } from "@/components/MyDailyReportsPanel";
 import { ModuleHeader } from "@/components/ModuleHeader";
 import { PageShell } from "@/components/PageShell";
 import { useProjectStore } from "@/lib/project-store";
@@ -15,6 +16,7 @@ export default function DailyReportPage() {
         title={project.name}
         description="Completa el registro por pasos. Actividades, compromisos y fotografias alimentan automaticamente los demas modulos."
       />
+      <MyDailyReportsPanel />
       <DailyReportWizard projectName={project.name} />
     </PageShell>
   );
