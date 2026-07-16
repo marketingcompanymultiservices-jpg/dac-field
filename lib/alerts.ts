@@ -107,24 +107,6 @@ export function buildSmartAlerts({
       }, overrideById));
     });
 
-  dailyReports.forEach((report) => {
-    const reportPhotos = photos.filter((photo) => photo.dailyReportId === report.id || photo.reportId === report.id);
-    if (reportPhotos.length < 5) {
-      alerts.push(withStatus({
-        id: "daily-report-photos-" + report.id,
-        type: "Registro sin fotografias",
-        priority: "Media",
-        date: report.date,
-        projectId: project.id,
-        projectName: project.name,
-        responsible: project.resident,
-        recommendedAction: "Cargar minimo 5 fotografias representativas del registro diario.",
-        detail: "El reporte diario tiene " + reportPhotos.length + " fotografias cargadas.",
-        href: "/projects/" + project.id + "/daily-report/" + report.id
-      }, overrideById));
-    }
-  });
-
   const lastReportDate = dailyReports.map((report) => report.date).sort().at(-1);
   if (!lastReportDate || daysBetween(lastReportDate, today) > 2) {
     alerts.push(withStatus({

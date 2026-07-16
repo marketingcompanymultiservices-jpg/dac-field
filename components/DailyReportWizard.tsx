@@ -72,6 +72,7 @@ const steps = [
   "Fotografias",
   "Firma y resumen"
 ];
+const maxDailyReportPhotos = 20;
 
 const initialReport: ReportData = {
   date: "",
@@ -320,9 +321,21 @@ export function DailyReportWizard({ projectName }: { projectName: string }) {
     if (!files || files.length === 0) return;
 
     setPhotoMessage("");
+    const selectedFiles = Array.from(files);
+    const availableSlots = Math.max(0, maxDailyReportPhotos - currentPhotos.length);
+
+    if (availableSlots === 0) {
+      setPhotoMessage("Ya alcanzaste el maximo de 20 fotografias para este reporte.");
+      return;
+    }
+
+    const acceptedFiles = selectedFiles.slice(0, availableSlots);
+    const limitMessage = selectedFiles.length > availableSlots
+      ? "Solo se agregaran " + availableSlots + " fotografias. El limite por reporte es 20."
+      : "";
     const savedPhotos = [];
 
-    for (const file of Array.from(files)) {
+    for (const file of acceptedFiles) {
       try {
         const photo = await saveImage(file, {
           projectId: project.id,
@@ -338,7 +351,9 @@ export function DailyReportWizard({ projectName }: { projectName: string }) {
 
     if (savedPhotos.length > 0) {
       addDailyPhotos(savedPhotos);
-      setPhotoMessage("Se cargaron " + savedPhotos.length + " fotografias al registro diario.");
+      setPhotoMessage([limitMessage, "Se cargaron " + savedPhotos.length + " fotografias al registro diario."].filter(Boolean).join(" "));
+    } else if (limitMessage) {
+      setPhotoMessage(limitMessage);
     }
   }
 
@@ -606,9 +621,8 @@ export function DailyReportWizard({ projectName }: { projectName: string }) {
         {currentStep === 6 && (
           <div className="grid gap-5">
             <div className="rounded-lg border border-dac-primary/10 p-4">
-              <p className="text-lg font-black text-dac-primary">Fotos cargadas: {currentPhotos.length}/5</p>
-              <p className="mt-1 text-sm text-dac-text/70">Carga imagenes reales desde la camara o galeria. Recomendado minimo 5 fotos.</p>
-              {currentPhotos.length < 5 && <p className="mt-2 text-sm font-bold text-dac-alert">Aun faltan {5 - currentPhotos.length} fotos para el minimo recomendado.</p>}
+              <p className="text-lg font-black text-dac-primary">Fotografías: {currentPhotos.length} de {maxDailyReportPhotos}</p>
+              <p className="mt-1 text-sm text-dac-text/70">Carga imagenes reales desde la camara o galeria. Las fotografias son opcionales y el maximo es 20 por reporte.</p>
               {photoMessage && <p className="mt-3 rounded-md bg-dac-secondary/10 px-3 py-2 text-sm font-bold text-dac-primary">{photoMessage}</p>}
               <div className="mt-4 grid gap-3 sm:grid-cols-2">
                 <label className="focus-ring cursor-pointer rounded-md bg-dac-primary px-5 py-3 text-center font-bold text-white hover:bg-dac-secondary">
@@ -858,7 +872,7 @@ function Summary({
     ["Problemas", report.problems],
     ["Acciones tomadas", report.actions],
     ["Firma", report.signature],
-    ["Fotografias", photosCount + "/5"],
+    ["Fotografías", photosCount + " de " + maxDailyReportPhotos],
     ["Avance calculado", executiveSummary.progress.toFixed(1) + " %"]
   ];
 

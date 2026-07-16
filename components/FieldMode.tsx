@@ -26,6 +26,7 @@ type CompactReport = {
 };
 
 const today = getLocalDateISO();
+const maxDailyReportPhotos = 20;
 const inputClass = "focus-ring mt-2 w-full rounded-md border border-dac-primary/20 bg-white px-4 py-4 text-base font-semibold text-dac-text outline-none";
 const labelClass = "block text-sm font-black text-dac-text";
 
@@ -183,9 +184,21 @@ export function FieldMode() {
   async function handleImageUpload(files: FileList | null) {
     if (!files || files.length === 0) return;
     setPhotoMessage("");
+    const selectedFiles = Array.from(files);
+    const availableSlots = Math.max(0, maxDailyReportPhotos - currentPhotos.length);
+
+    if (availableSlots === 0) {
+      setPhotoMessage("Ya alcanzaste el maximo de 20 fotografias para este reporte.");
+      return;
+    }
+
+    const acceptedFiles = selectedFiles.slice(0, availableSlots);
+    const limitMessage = selectedFiles.length > availableSlots
+      ? "Solo se agregaran " + availableSlots + " fotografias. El limite por reporte es 20."
+      : "";
     const savedPhotos = [];
 
-    for (const file of Array.from(files)) {
+    for (const file of acceptedFiles) {
       try {
         const photo = await saveImage(file, {
           projectId: project.id,
@@ -202,7 +215,9 @@ export function FieldMode() {
 
     if (savedPhotos.length > 0) {
       addDailyPhotos(savedPhotos);
-      setPhotoMessage("Se cargaron " + savedPhotos.length + " fotografias.");
+      setPhotoMessage([limitMessage, "Se cargaron " + savedPhotos.length + " fotografias."].filter(Boolean).join(" "));
+    } else if (limitMessage) {
+      setPhotoMessage(limitMessage);
     }
   }
 
@@ -279,7 +294,7 @@ export function FieldMode() {
           <p className="mt-2 text-sm font-semibold opacity-85">Residente: {project.resident}</p>
           <div className="mt-4 grid grid-cols-3 gap-2 text-center">
             <StatusPill label="Avance" value={project.progress.toFixed(1) + " %"} />
-            <StatusPill label="Fotos" value={currentPhotos.length + "/5"} />
+            <StatusPill label="Fotos" value={currentPhotos.length + " de " + maxDailyReportPhotos} />
             <StatusPill label="Reporte" value={todayReport?.status ?? "No enviado"} />
           </div>
         </section>
@@ -336,8 +351,8 @@ export function FieldMode() {
         </section>
 
         <section id="fotos" className="rounded-lg border border-dac-primary/10 bg-white p-4 shadow-sm">
-          <SectionTitle eyebrow="Camara" title={"Fotografias " + currentPhotos.length + "/5"} />
-          <p className="mt-2 text-sm font-semibold text-dac-text/70">Minimo recomendado: 5 fotos por jornada.</p>
+          <SectionTitle eyebrow="Camara" title={"Fotografías: " + currentPhotos.length + " de " + maxDailyReportPhotos} />
+          <p className="mt-2 text-sm font-semibold text-dac-text/70">Las fotografias son opcionales. Maximo 20 por reporte.</p>
           {photoMessage && <p className="mt-3 rounded-md bg-dac-secondary/10 p-3 text-sm font-bold text-dac-primary">{photoMessage}</p>}
           <div className="mt-4 grid gap-3">
             <label className="focus-ring cursor-pointer rounded-lg bg-dac-alert px-5 py-5 text-center text-lg font-black text-white">
@@ -409,7 +424,7 @@ export function FieldMode() {
           <SectionTitle eyebrow="Sincronizacion local" title="Estado de datos" />
           <div className="mt-4 grid gap-3">
             <Info label="Datos" value={!isHydrated ? "Sincronizando" : hasLocalData ? "Sincronizado" : "Datos base"} />
-            <Info label="Fotos pendientes" value={String(Math.max(0, 5 - currentPhotos.length))} />
+            <Info label="Fotos cargadas" value={currentPhotos.length + " de " + maxDailyReportPhotos} />
             <Info label="Reporte de hoy" value={todayReport?.status ?? "No enviado"} />
           </div>
         </section>
