@@ -4,15 +4,15 @@ import Link from "next/link";
 import { useMemo } from "react";
 import { useAuth } from "@/components/AuthProvider";
 import { useProjectStore } from "@/lib/project-store";
-import type { DailyReportEntry } from "@/types";
+import type { AdminUser, DailyReportEntry } from "@/types";
 
-const directorRoles = new Set(["Administrador", "Director Administrativo", "Director"]);
+const directorRoles = new Set(["administrador", "director administrativo", "director"]);
 
 export function MyDailyReportsPanel() {
   const { profile, user } = useAuth();
   const { activities, dailyReports, isHydrated, photos, project } = useProjectStore();
   const today = getLocalDateISO();
-  const role = profile?.role ?? "";
+  const role = getProfileRole(profile);
   const canViewAll = directorRoles.has(role);
   const userKeys = useMemo(() => buildUserKeys(profile, user?.email), [profile, user?.email]);
 
@@ -57,7 +57,7 @@ export function MyDailyReportsPanel() {
       <div className="mt-4 grid gap-3">
         {reports.length === 0 && (
           <p className="rounded-md border border-dac-primary/10 bg-dac-primary/[0.02] p-4 text-sm font-semibold text-dac-text/65">
-            Aun no has enviado reportes hoy.
+            {canViewAll ? "No hay reportes enviados hoy." : "Aun no has enviado reportes hoy."}
           </p>
         )}
 
@@ -116,6 +116,10 @@ function buildUserKeys(profile: ReturnType<typeof useAuth>["profile"], email?: s
     profile?.lastName
   ];
   return new Set(keys.map(normalizeIdentity).filter(Boolean));
+}
+
+function getProfileRole(profile: AdminUser | null) {
+  return normalizeIdentity(profile?.role);
 }
 
 function normalizeIdentity(value?: string | null) {
