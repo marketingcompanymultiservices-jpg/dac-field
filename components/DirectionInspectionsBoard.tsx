@@ -98,6 +98,15 @@ export function DirectionInspectionsBoard() {
   }, [adminUsers]);
 
   const filteredInspections = useMemo(() => {
+    console.log("[DAC DirectionInspections Diagnostic] before filters", {
+      inspectionsLength: directionInspections.length,
+      profileRole: profile?.role,
+      profileId: profile?.id,
+      currentUserEmail: user?.email,
+      projectId: project.id,
+      inspectionIds: directionInspections.map((inspection) => inspection.id)
+    });
+
     return directionInspections.filter((inspection) => {
       const matchesProject = filters.project === "Todos" || inspection.projectId === filters.project;
       const matchesResponsible = filters.responsible === "Todos" || inspection.responsible === filters.responsible;
@@ -107,7 +116,15 @@ export function DirectionInspectionsBoard() {
       const matchesDate = !filters.date || inspection.createdAt.slice(0, 10) === filters.date;
       return matchesProject && matchesResponsible && matchesStatus && matchesPriority && matchesCategory && matchesDate;
     });
-  }, [directionInspections, filters]);
+  }, [directionInspections, filters, profile?.id, profile?.role, project.id, user?.email]);
+
+  useEffect(() => {
+    console.log("[DAC DirectionInspections Diagnostic] after filters", {
+      filteredInspectionsLength: filteredInspections.length,
+      filters,
+      finalIds: filteredInspections.map((inspection) => inspection.id)
+    });
+  }, [filteredInspections, filters]);
 
   const summary = useMemo(() => {
     const today = new Date().toISOString().slice(0, 10);
