@@ -58,6 +58,37 @@ type DirectionInspectionDiagnostics = {
 
 const writeAllowedRoles = ["Administrador", "Director Administrativo", "Director", "Residente de Obra"];
 
+export function subscribeToDirectionInspectionChanges(projectId: string, onChange: () => void, onError?: (error: unknown) => void) {
+  if (!supabaseClient) throw new Error("Supabase no esta configurado.");
+  const client = supabaseClient;
+
+  const channel = client
+    .channel("direction-inspections-" + projectId)
+    .on(
+      "postgres_changes",
+      { event: "*", schema: "public", table: "direction_inspections", filter: "project_id=eq." + projectId },
+      onChange
+    )
+    .on(
+      "postgres_changes",
+      { event: "*", schema: "public", table: "direction_inspection_history" },
+      onChange
+    )
+    .subscribe((status, error) => {
+      if (error) {
+        console.error("[DAC DirectionInspections] Error en sincronizacion realtime", error);
+        onError?.(error);
+      }
+      if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
+        onError?.(new Error("No fue posible mantener la sincronizacion en tiempo real de inspecciones."));
+      }
+    });
+
+  return () => {
+    void client.removeChannel(channel);
+  };
+}
+
 export async function loadDirectionInspectionsFromSupabase(projectId?: string) {
   if (!supabaseClient) throw new Error("Supabase no esta configurado.");
 

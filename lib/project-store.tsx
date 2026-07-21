@@ -22,7 +22,9 @@ import { clearAppState, loadAppState, saveAppState } from "@/lib/storage";
 import { recalculateProjectBudgetExecution } from "@/lib/supabase/progress-engine";
 import { createDraftProjectBudgetInSupabase, loadProjectBudgetFromSupabase, replaceProjectBudgetInSupabase, updateProjectBudgetItemInSupabase } from "@/lib/supabase/budget";
 import { loadDailyReportBundleFromSupabase, saveDailyReportBundleToSupabase } from "@/lib/supabase/daily-reports";
+import { loadDirectionInspectionsFromSupabase, subscribeToDirectionInspectionChanges } from "@/lib/supabase/direction-inspections";
 import { loadProjectInitialSurveyItems, saveProjectInitialSurveyItems } from "@/lib/supabase/initial-survey";
+import { isSupabaseConfigured } from "@/lib/supabaseClient";
 import type {
   ActivityPlanning,
   AdminCompany,
@@ -477,6 +479,47 @@ export function ProjectStoreProvider({ children }: { children: ReactNode }) {
     loadRemoteBudget();
     return () => {
       active = false;
+    };
+  }, [isHydrated, projectBase.id]);
+
+  useEffect(() => {
+    if (!isHydrated || !isSupabaseConfigured) return;
+
+    let active = true;
+    let reloadTimeout: number | null = null;
+    async function loadRemoteDirectionInspections() {
+      try {
+        const inspections = await loadDirectionInspectionsFromSupabase(projectBase.id);
+        if (!active) return;
+        setDirectionInspections(inspections);
+        setShouldPersist(true);
+      } catch (error) {
+        if (!active) return;
+        setSystemEvents((current) => [
+          {
+            id: "event-direction-inspections-load-error-" + Date.now(),
+            time: new Date().toTimeString().slice(0, 5),
+            title: "No fue posible cargar inspecciones desde Supabase.",
+            description: error instanceof Error ? error.message : "Error desconocido al consultar inspecciones.",
+            source: "Sistema"
+          },
+          ...current
+        ]);
+      }
+    }
+
+    void loadRemoteDirectionInspections();
+    const unsubscribe = subscribeToDirectionInspectionChanges(projectBase.id, () => {
+      if (reloadTimeout) window.clearTimeout(reloadTimeout);
+      reloadTimeout = window.setTimeout(() => {
+        void loadRemoteDirectionInspections();
+      }, 350);
+    });
+
+    return () => {
+      active = false;
+      if (reloadTimeout) window.clearTimeout(reloadTimeout);
+      unsubscribe();
     };
   }, [isHydrated, projectBase.id]);
 

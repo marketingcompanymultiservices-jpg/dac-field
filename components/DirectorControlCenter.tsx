@@ -10,7 +10,7 @@ import { buildProgrammedRows, calculateProgrammedSummary } from "@/lib/programme
 import { getTodayISO, getWeekStartISO } from "@/lib/planning";
 import { buildActivityProductivity, calculateProductivitySummary } from "@/lib/productivity";
 import { useProjectStore } from "@/lib/project-store";
-import { loadDirectionInspectionsFromSupabase } from "@/lib/supabase/direction-inspections";
+import { loadDirectionInspectionsFromSupabase, subscribeToDirectionInspectionChanges } from "@/lib/supabase/direction-inspections";
 import { isSupabaseConfigured } from "@/lib/supabaseClient";
 import type { AdminPermissionModule, DirectionInspection, SmartAlert } from "@/types";
 
@@ -81,16 +81,27 @@ export function DirectorControlCenter() {
     let active = true;
     if (!isSupabaseConfigured) return;
 
-    loadDirectionInspectionsFromSupabase(project.id)
+    const loadDashboardInspections = () => loadDirectionInspectionsFromSupabase(project.id)
       .then((inspections) => {
         if (active) setDashboardDirectionInspections(inspections);
       })
       .catch((error) => {
         console.error("[DAC Dashboard] No fue posible cargar inspecciones para indicadores", error);
       });
+    void loadDashboardInspections();
+
+    let reloadTimeout: number | null = null;
+    const unsubscribe = subscribeToDirectionInspectionChanges(project.id, () => {
+      if (reloadTimeout) window.clearTimeout(reloadTimeout);
+      reloadTimeout = window.setTimeout(() => {
+        void loadDashboardInspections();
+      }, 350);
+    });
 
     return () => {
       active = false;
+      if (reloadTimeout) window.clearTimeout(reloadTimeout);
+      unsubscribe();
     };
   }, [project.id]);
 

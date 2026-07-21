@@ -9,6 +9,7 @@ import {
   createDirectionInspectionInSupabase,
   loadDirectionInspectionsFromSupabase,
   mergeDirectionInspectionUpdate,
+  subscribeToDirectionInspectionChanges,
   updateDirectionInspectionInSupabase
 } from "@/lib/supabase/direction-inspections";
 import type { DirectionInspection, DirectionInspectionCategory, DirectionInspectionPriority, DirectionInspectionStatus } from "@/types";
@@ -178,6 +179,27 @@ export function DirectionInspectionsBoard() {
       active = false;
     };
   }, [loadInspections]);
+
+  useEffect(() => {
+    if (!isSupabaseConfigured) return undefined;
+
+    let reloadTimeout: number | null = null;
+    const scheduleReload = () => {
+      if (reloadTimeout) window.clearTimeout(reloadTimeout);
+      reloadTimeout = window.setTimeout(() => {
+        void loadInspections({ keepCurrentOnError: true, silent: true });
+      }, 350);
+    };
+
+    const unsubscribe = subscribeToDirectionInspectionChanges(project.id, scheduleReload, () => {
+      setMessage("No fue posible mantener la sincronizacion automatica de inspecciones. Usa Reintentar para actualizar.");
+    });
+
+    return () => {
+      if (reloadTimeout) window.clearTimeout(reloadTimeout);
+      unsubscribe();
+    };
+  }, [loadInspections, project.id]);
 
   async function submitInspection(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
