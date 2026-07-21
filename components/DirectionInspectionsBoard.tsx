@@ -84,9 +84,13 @@ export function DirectionInspectionsBoard() {
   const roleConfig = adminRoles.find((role) => role.name === roleName);
   const canCreateInspection = hasInspectionPermission("Crear", roleConfig, roleName);
   const canEditInspection = hasInspectionPermission("Editar", roleConfig, roleName);
+  const canViewAllInspections = canSeeAllInspections(roleName);
+  const currentUserAliases = useMemo(() => buildUserAliases(profile, user?.email, localCurrentUser), [localCurrentUser, profile, user?.email]);
   const [draft, setDraft] = useState<InspectionDraft>({ ...emptyDraft, responsible: project.resident });
   const [observationFiles, setObservationFiles] = useState<File[]>([]);
   const [directionInspections, setDirectionInspections] = useState<DirectionInspection[]>([]);
+  const [selectedInspectionId, setSelectedInspectionId] = useState("");
+  const [showCreateForm, setShowCreateForm] = useState(false);
   const [filters, setFilters] = useState<Filters>({ project: "Todos", responsible: "Todos", status: "Todos", priority: "Todas", category: "Todas", date: "" });
   const [message, setMessage] = useState("");
   const [loadError, setLoadError] = useState("");
@@ -97,17 +101,22 @@ export function DirectionInspectionsBoard() {
     return adminUsers.filter((item) => item.active).map((item) => (item.firstName + " " + item.lastName).trim() || item.email);
   }, [adminUsers]);
 
-  const filteredInspections = useMemo(() => {
-    console.log("[DAC DirectionInspections Diagnostic] before filters", {
-      inspectionsLength: directionInspections.length,
-      profileRole: profile?.role,
-      profileId: profile?.id,
-      currentUserEmail: user?.email,
-      projectId: project.id,
-      inspectionIds: directionInspections.map((inspection) => inspection.id)
-    });
+  useEffect(() => {
+    if (typeof window !== "undefined" && new URLSearchParams(window.location.search).get("new") === "1" && canCreateInspection) {
+      setShowCreateForm(true);
+    }
+  }, [canCreateInspection]);
 
+  const scopedInspections = useMemo(() => {
     return directionInspections.filter((inspection) => {
+      if (inspection.projectId !== project.id) return false;
+      if (canViewAllInspections) return true;
+      return currentUserAliases.has(normalizeIdentity(inspection.responsible));
+    });
+  }, [canViewAllInspections, currentUserAliases, directionInspections, project.id]);
+
+  const filteredInspections = useMemo(() => {
+    return scopedInspections.filter((inspection) => {
       const matchesProject = filters.project === "Todos" || inspection.projectId === filters.project;
       const matchesResponsible = filters.responsible === "Todos" || inspection.responsible === filters.responsible;
       const matchesStatus = filters.status === "Todos" || inspection.status === filters.status;
@@ -116,25 +125,17 @@ export function DirectionInspectionsBoard() {
       const matchesDate = !filters.date || inspection.createdAt.slice(0, 10) === filters.date;
       return matchesProject && matchesResponsible && matchesStatus && matchesPriority && matchesCategory && matchesDate;
     });
-  }, [directionInspections, filters, profile?.id, profile?.role, project.id, user?.email]);
-
-  useEffect(() => {
-    console.log("[DAC DirectionInspections Diagnostic] after filters", {
-      filteredInspectionsLength: filteredInspections.length,
-      filters,
-      finalIds: filteredInspections.map((inspection) => inspection.id)
-    });
-  }, [filteredInspections, filters]);
+  }, [filters, scopedInspections]);
 
   const summary = useMemo(() => {
     const today = new Date().toISOString().slice(0, 10);
     return {
-      pending: directionInspections.filter((item) => item.status === "Pendiente").length,
-      inProcess: directionInspections.filter((item) => item.status === "En proceso").length,
-      closed: directionInspections.filter((item) => item.status === "Cerrada").length,
-      overdue: directionInspections.filter((item) => item.status !== "Cerrada" && item.dueDate && item.dueDate < today).length
+      pending: scopedInspections.filter((item) => item.status === "Pendiente").length,
+      inProcess: scopedInspections.filter((item) => item.status === "En proceso").length,
+      closed: scopedInspections.filter((item) => item.status === "Cerrada").length,
+      overdue: scopedInspections.filter((item) => item.status !== "Cerrada" && item.dueDate && item.dueDate < today).length
     };
-  }, [directionInspections]);
+  }, [scopedInspections]);
 
   const loadInspections = useCallback(async (options?: { keepCurrentOnError?: boolean; silent?: boolean }) => {
     if (!isSupabaseConfigured) {
@@ -235,6 +236,8 @@ export function DirectionInspectionsBoard() {
         }
       }
       setDirectionInspections((current) => [nextInspection, ...current]);
+      setSelectedInspectionId(nextInspection.id);
+      setShowCreateForm(false);
       setDraft({ ...emptyDraft, responsible: project.resident });
       setObservationFiles([]);
       const reloadConfirmed = await loadInspections({ keepCurrentOnError: true, silent: true });
@@ -282,8 +285,29 @@ export function DirectionInspectionsBoard() {
         <Metric label="Vencidas" value={summary.overdue} tone="alert" />
       </section>
 
-      <section className="grid gap-4 xl:grid-cols-[420px_1fr]">
-        {canCreateInspection ? (
+      <section className="rounded-lg border border-dac-primary/15 bg-white p-4 shadow-panel">
+        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+          <div>
+            <p className="text-sm font-black uppercase text-dac-secondary">Inspecciones</p>
+            <h2 className="mt-1 text-xl font-black text-dac-primary">Listado y seguimiento</h2>
+            <p className="mt-1 text-sm font-semibold text-dac-text/65">
+              {canViewAllInspections ? "Consulta general de inspecciones del proyecto." : "Consulta de inspecciones asignadas a tu usuario."}
+            </p>
+          </div>
+          {canCreateInspection && (
+            <button
+              type="button"
+              onClick={() => setShowCreateForm((current) => !current)}
+              className="focus-ring rounded-md bg-dac-primary px-4 py-3 text-sm font-black text-white hover:bg-dac-secondary"
+            >
+              {showCreateForm ? "Cerrar formulario" : "Nueva inspeccion"}
+            </button>
+          )}
+        </div>
+      </section>
+
+      <section className="grid gap-4">
+        {canCreateInspection && showCreateForm && (
           <form onSubmit={submitInspection} className="rounded-lg border border-dac-primary/15 bg-white p-4 shadow-panel">
             <p className="text-sm font-black uppercase text-dac-secondary">Nueva inspeccion</p>
             <h2 className="mt-1 text-xl font-black text-dac-primary">Recorrido de direccion</h2>
@@ -316,7 +340,8 @@ export function DirectionInspectionsBoard() {
               </button>
             </div>
           </form>
-        ) : (
+        )}
+        {!canCreateInspection && (
           <aside className="rounded-lg border border-dac-primary/15 bg-white p-4 shadow-panel">
             <p className="text-sm font-black uppercase text-dac-secondary">Inspecciones de Direccion</p>
             <h2 className="mt-1 text-xl font-black text-dac-primary">Modo consulta</h2>
@@ -326,38 +351,70 @@ export function DirectionInspectionsBoard() {
           </aside>
         )}
 
-        <section className="grid gap-4">
-          <FiltersPanel filters={filters} projects={projects} responsibles={responsibles} onChange={updateFilter} />
-          {isLoading && <p className="rounded-lg border border-dac-primary/10 bg-white p-5 text-sm font-semibold text-dac-text/60">Cargando inspecciones...</p>}
-          {!isLoading && loadError && (
-            <div className="rounded-lg border border-dac-alert/20 bg-white p-5">
-              <p className="text-sm font-black text-dac-alert">No fue posible cargar las inspecciones.</p>
-              <p className="mt-2 break-words text-sm font-semibold text-dac-text/70">{loadError}</p>
-              <button type="button" onClick={() => loadInspections()} className="focus-ring mt-4 rounded-md bg-dac-primary px-4 py-2 text-sm font-black text-white hover:bg-dac-secondary">
-                Reintentar
+        <FiltersPanel filters={filters} projects={projects} responsibles={responsibles} onChange={updateFilter} />
+        {isLoading && <p className="rounded-lg border border-dac-primary/10 bg-white p-5 text-sm font-semibold text-dac-text/60">Cargando inspecciones...</p>}
+        {!isLoading && loadError && (
+          <div className="rounded-lg border border-dac-alert/20 bg-white p-5">
+            <p className="text-sm font-black text-dac-alert">No fue posible cargar las inspecciones.</p>
+            <p className="mt-2 break-words text-sm font-semibold text-dac-text/70">{loadError}</p>
+            <button type="button" onClick={() => loadInspections()} className="focus-ring mt-4 rounded-md bg-dac-primary px-4 py-2 text-sm font-black text-white hover:bg-dac-secondary">
+              Reintentar
+            </button>
+          </div>
+        )}
+        {!isLoading && !loadError && filteredInspections.map((inspection) => (
+          selectedInspectionId === inspection.id ? (
+            <div key={inspection.id} className="grid gap-3">
+              <button type="button" onClick={() => setSelectedInspectionId("")} className="focus-ring w-fit rounded-md border border-dac-primary/15 px-3 py-2 text-sm font-black text-dac-primary hover:bg-dac-secondary/10">
+                Volver al listado
               </button>
+              <InspectionCard
+                currentUser={currentUser}
+                inspection={inspection}
+                photos={photos}
+                saveFiles={saveFiles}
+                addPhotos={addDirectionInspectionPhotos}
+                canEdit={canEditInspection}
+                onRemoteUpdate={(nextInspection) =>
+                  setDirectionInspections((current) => current.map((item) => (item.id === nextInspection.id ? nextInspection : item)))
+                }
+              />
             </div>
-          )}
-          {!isLoading && !loadError && filteredInspections.map((inspection) => (
-            <InspectionCard
-              key={inspection.id}
-              currentUser={currentUser}
-              inspection={inspection}
-              photos={photos}
-              saveFiles={saveFiles}
-              addPhotos={addDirectionInspectionPhotos}
-              canEdit={canEditInspection}
-              onRemoteUpdate={(nextInspection) =>
-                setDirectionInspections((current) => current.map((item) => (item.id === nextInspection.id ? nextInspection : item)))
-              }
-            />
-          ))}
-          {!isLoading && !loadError && filteredInspections.length === 0 && <p className="rounded-lg border border-dac-primary/10 bg-white p-5 text-sm font-semibold text-dac-text/60">No hay inspecciones registradas con los filtros seleccionados.</p>}
-        </section>
+          ) : (
+            <InspectionListItem key={inspection.id} inspection={inspection} onView={() => setSelectedInspectionId(inspection.id)} />
+          )
+        ))}
+        {!isLoading && !loadError && filteredInspections.length === 0 && <p className="rounded-lg border border-dac-primary/10 bg-white p-5 text-sm font-semibold text-dac-text/60">No hay inspecciones asignadas.</p>}
       </section>
 
-      {!isLoading && !loadError && <DashboardBreakdown inspections={directionInspections} />}
+      {!isLoading && !loadError && <DashboardBreakdown inspections={scopedInspections} />}
     </div>
+  );
+}
+
+function InspectionListItem({ inspection, onView }: { inspection: DirectionInspection; onView: () => void }) {
+  return (
+    <article className="rounded-lg border border-dac-primary/15 bg-white p-4 shadow-sm">
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+        <div className="min-w-0">
+          <div className="flex flex-wrap gap-2">
+            <span className={priorityClass(inspection.priority)}>{inspection.priority}</span>
+            <span className={statusClass(inspection.status)}>{inspection.status}</span>
+            <span className="rounded-full bg-dac-primary/10 px-3 py-1 text-xs font-black text-dac-primary">{inspection.category}</span>
+          </div>
+          <h3 className="mt-3 break-words text-lg font-black text-dac-primary">{inspection.description}</h3>
+          <dl className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+            <Info label="Responsable" value={inspection.responsible} />
+            <Info label="Fecha limite" value={inspection.dueDate} />
+            <Info label="Estado" value={inspection.status} />
+            <Info label="Prioridad" value={inspection.priority} />
+          </dl>
+        </div>
+        <button type="button" onClick={onView} className="focus-ring rounded-md bg-dac-primary px-4 py-3 text-sm font-black text-white hover:bg-dac-secondary">
+          Ver inspeccion
+        </button>
+      </div>
+    </article>
   );
 }
 
@@ -612,8 +669,41 @@ function hasInspectionPermission(
   roleConfig: { permissions: { "Inspecciones de Direccion": Partial<Record<string, boolean>> } } | undefined,
   roleName: string
 ) {
-  if (roleName === "Administrador") return true;
+  const normalizedRole = normalizeRole(roleName);
+  if (normalizedRole === "administrador") return true;
+  if (action === "Crear" && !["director", "director administrativo"].includes(normalizedRole)) return false;
   return Boolean(roleConfig?.permissions["Inspecciones de Direccion"]?.[action]);
+}
+
+function canSeeAllInspections(roleName: string) {
+  return ["administrador", "director", "director administrativo"].includes(normalizeRole(roleName));
+}
+
+function buildUserAliases(
+  profile: { id?: string; firstName?: string; lastName?: string; email?: string } | null,
+  authEmail: string | undefined,
+  localUser: { id?: string; firstName?: string; lastName?: string; email?: string }
+) {
+  const fullName = profile
+    ? [profile.firstName, profile.lastName].filter(Boolean).join(" ")
+    : [localUser.firstName, localUser.lastName].filter(Boolean).join(" ");
+  return new Set(
+    [fullName, profile?.email, authEmail, profile?.id, localUser.email, localUser.id]
+      .filter(Boolean)
+      .map((value) => normalizeIdentity(String(value)))
+  );
+}
+
+function normalizeRole(role: string) {
+  return normalizeIdentity(role);
+}
+
+function normalizeIdentity(value: string) {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim()
+    .toLowerCase();
 }
 
 function Info({ label, value }: { label: string; value: string }) {

@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useEffect, useState } from "react";
 import type { ReactNode } from "react";
 import { ModuleHeader } from "@/components/ModuleHeader";
 import { PageShell } from "@/components/PageShell";
@@ -9,7 +10,9 @@ import { buildProgrammedRows, calculateProgrammedSummary } from "@/lib/programme
 import { getTodayISO, getWeekStartISO } from "@/lib/planning";
 import { buildActivityProductivity, calculateProductivitySummary } from "@/lib/productivity";
 import { useProjectStore } from "@/lib/project-store";
-import type { AdminPermissionModule, SmartAlert } from "@/types";
+import { loadDirectionInspectionsFromSupabase } from "@/lib/supabase/direction-inspections";
+import { isSupabaseConfigured } from "@/lib/supabaseClient";
+import type { AdminPermissionModule, DirectionInspection, SmartAlert } from "@/types";
 
 const currencyFormatter = new Intl.NumberFormat("es-CO", { style: "currency", currency: "COP", maximumFractionDigits: 0 });
 const numberFormatter = new Intl.NumberFormat("es-CO", { maximumFractionDigits: 1 });
@@ -19,6 +22,7 @@ type QuickAction = {
   label: string;
   permission: AdminPermissionModule;
   alert?: boolean;
+  createOnly?: boolean;
 };
 
 export function DirectorControlCenter() {
@@ -32,6 +36,7 @@ export function DirectorControlCenter() {
     commitments,
     currentUser,
     dailyReports,
+    directionInspections,
     isHydrated,
     lastSavedAt,
     photos,
@@ -43,8 +48,11 @@ export function DirectorControlCenter() {
   } = useProjectStore();
   const today = getTodayISO();
   const dashboardUser = profile ?? currentUser;
+  const [dashboardDirectionInspections, setDashboardDirectionInspections] = useState<DirectionInspection[]>(directionInspections);
   const roleName = profile?.role ?? currentUser.role;
   const roleConfig = adminRoles.find((role) => role.name === roleName);
+  const currentUserAliases = buildUserAliases(profile, currentUser);
+  const canViewAllDirectionInspections = canSeeAllInspections(roleName);
   const weekStart = getWeekStartISO(today);
   const todayActivities = activities.filter((activity) => activity.date === today);
   const todayPhotos = photos.filter((photo) => photo.date === today);
@@ -65,19 +73,48 @@ export function DirectorControlCenter() {
   const pendingCommitments = commitments.filter((commitment) => commitment.status === "Pendiente").length;
   const overdueCommitments = commitments.filter((commitment) => commitment.status === "Vencido" || (commitment.status !== "Cumplido" && commitment.dueDate < today)).length;
   const completedCommitments = commitments.filter((commitment) => commitment.status === "Cumplido").length;
+  useEffect(() => {
+    setDashboardDirectionInspections(directionInspections);
+  }, [directionInspections]);
+
+  useEffect(() => {
+    let active = true;
+    if (!isSupabaseConfigured) return;
+
+    loadDirectionInspectionsFromSupabase(project.id)
+      .then((inspections) => {
+        if (active) setDashboardDirectionInspections(inspections);
+      })
+      .catch((error) => {
+        console.error("[DAC Dashboard] No fue posible cargar inspecciones para indicadores", error);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [project.id]);
+
+  const dashboardInspections = dashboardDirectionInspections.filter((inspection) => {
+    if (inspection.projectId !== project.id) return false;
+    if (canViewAllDirectionInspections) return true;
+    return currentUserAliases.has(normalizeIdentity(inspection.responsible));
+  });
+  const pendingDirectionInspections = dashboardInspections.filter((inspection) => inspection.status === "Pendiente" || inspection.status === "En proceso").length;
+  const overdueDirectionInspections = dashboardInspections.filter((inspection) => (inspection.status === "Pendiente" || inspection.status === "En proceso") && inspection.dueDate < today).length;
   const lastResponsible = todayActivities[0]?.owner || project.resident;
   const totalProjectValue = budgetVersion?.totalProjectValue ?? 0;
   const totalExecutedValue = budgetVersion?.totalExecutedValue ?? 0;
   const totalPendingValue = budgetVersion?.totalPendingValue ?? 0;
   const quickActionItems: QuickAction[] = [
     { href: "/projects/" + project.id + "/daily-report", label: "Registro Diario", permission: "Registro Diario" },
-    { href: "/projects/" + project.id + "/direction-inspections", label: "Nueva Inspección", permission: "Inspecciones de Direccion", alert: true },
+    { href: "/projects/" + project.id + "/direction-inspections", label: "Inspecciones", permission: "Inspecciones de Direccion" },
+    { href: "/projects/" + project.id + "/direction-inspections?new=1", label: "Nueva inspeccion", permission: "Inspecciones de Direccion", alert: true, createOnly: true },
     { href: "/projects/" + project.id + "/progress", label: "Registrar Avance", permission: "Avance" },
     { href: "/projects/" + project.id + "/budget", label: "Presupuesto", permission: "Presupuesto" },
     { href: "/projects/" + project.id + "/reports", label: "Reportes", permission: "Reportes" },
     { href: "/projects/" + project.id + "/documents", label: "Documentos", permission: "Documentos" }
   ];
-  const quickActions = quickActionItems.filter((action) => canView(action.permission, roleConfig, roleName));
+  const quickActions = quickActionItems.filter((action) => canView(action.permission, roleConfig, roleName) && (!action.createOnly || canCreateInspection(roleConfig, roleName)));
 
   return (
     <PageShell activeItem="Dashboard">
@@ -170,6 +207,17 @@ export function DirectorControlCenter() {
       </section>
 
       <section className="mt-4 grid gap-3 xl:grid-cols-3">
+        <Panel>
+          <p className="text-sm font-black uppercase text-dac-secondary">Inspecciones</p>
+          <div className="mt-3 grid grid-cols-2 gap-2">
+            <MiniMetric label="Pendientes" value={pendingDirectionInspections} alert={pendingDirectionInspections > 0} />
+            <MiniMetric label="Vencidas" value={overdueDirectionInspections} alert={overdueDirectionInspections > 0} />
+          </div>
+          <Link href={"/projects/" + project.id + "/direction-inspections"} className="focus-ring mt-3 inline-flex w-full justify-center rounded-md border border-dac-primary px-3 py-2 text-sm font-black text-dac-primary hover:bg-dac-secondary/10">
+            Abrir inspecciones
+          </Link>
+        </Panel>
+
         <Panel>
           <p className="text-sm font-black uppercase text-dac-secondary">Planeacion</p>
           <div className="mt-3 grid gap-2">
@@ -332,7 +380,57 @@ function formatSavedAt(lastSavedAt: string | null, isHydrated: boolean) {
 }
 
 function canView(permission: AdminPermissionModule, roleConfig: { permissions: Partial<Record<AdminPermissionModule, { Ver?: boolean }>> } | undefined, roleName: string) {
-  if (roleName === "Administrador") return true;
+  const normalizedRole = normalizeRole(roleName);
+  if (normalizedRole === "administrador") return true;
+  if (permission === "Inspecciones de Direccion" && !canNavigateToInspections(normalizedRole)) return false;
   if (!roleConfig) return true;
   return roleConfig.permissions[permission]?.Ver ?? false;
+}
+
+function canCreateInspection(roleConfig: { permissions: Partial<Record<AdminPermissionModule, { Crear?: boolean }>> } | undefined, roleName: string) {
+  const normalizedRole = normalizeRole(roleName);
+  if (normalizedRole === "administrador") return true;
+  if (!["director", "director administrativo"].includes(normalizedRole)) return false;
+  if (!roleConfig) return true;
+  return roleConfig.permissions["Inspecciones de Direccion"]?.Crear ?? false;
+}
+
+function canSeeAllInspections(roleName: string) {
+  return ["administrador", "director", "director administrativo"].includes(normalizeRole(roleName));
+}
+
+function canNavigateToInspections(normalizedRole: string) {
+  return [
+    "administrador",
+    "director",
+    "director administrativo",
+    "residente de obra",
+    "interventoria",
+    "supervisor tecnico"
+  ].includes(normalizedRole);
+}
+
+function buildUserAliases(
+  profile: { id?: string; firstName?: string; lastName?: string; email?: string } | null,
+  localUser: { id?: string; firstName?: string; lastName?: string; email?: string }
+) {
+  const profileName = profile ? [profile.firstName, profile.lastName].filter(Boolean).join(" ") : "";
+  const localName = [localUser.firstName, localUser.lastName].filter(Boolean).join(" ");
+  return new Set(
+    [profileName, localName, profile?.email, profile?.id, localUser.email, localUser.id]
+      .filter(Boolean)
+      .map((value) => normalizeIdentity(String(value)))
+  );
+}
+
+function normalizeRole(role: string) {
+  return normalizeIdentity(role);
+}
+
+function normalizeIdentity(value: string) {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim()
+    .toLowerCase();
 }

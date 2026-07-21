@@ -83,11 +83,6 @@ export async function loadDirectionInspectionsFromSupabase(projectId?: string) {
   }
 
   const inspections = (inspectionRows ?? []) as DirectionInspectionRow[];
-  console.log("[DAC DirectionInspections Diagnostic] SELECT direction_inspections", {
-    projectId,
-    inspectionsLength: inspections.length,
-    ids: inspections.map((inspection) => inspection.id)
-  });
   if (inspections.length === 0) return [];
 
   const ids = inspections.map((inspection) => inspection.id);

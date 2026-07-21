@@ -38,7 +38,9 @@ export type AlertType =
   | "Actividad con baja productividad"
   | "Planificacion vencida"
   | "Documento pendiente"
-  | "Observacion de interventoria pendiente";
+  | "Observacion de interventoria pendiente"
+  | "Inspeccion vencida"
+  | "Inspeccion proxima a vencer";
 
 export type AlertPriority = "Critica" | "Alta" | "Media" | "Baja";
 

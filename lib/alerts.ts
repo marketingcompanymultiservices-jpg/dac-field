@@ -10,7 +10,8 @@ import type {
   Project,
   ProjectDocument,
   SmartAlert,
-  BudgetItem
+  BudgetItem,
+  DirectionInspection
 } from "@/types";
 
 type BuildAlertInput = {
@@ -22,6 +23,7 @@ type BuildAlertInput = {
   photos: DailyPhoto[];
   commitments: Commitment[];
   documents: ProjectDocument[];
+  directionInspections: DirectionInspection[];
   overrides: AlertOverride[];
 };
 
@@ -37,6 +39,7 @@ export function buildSmartAlerts({
   photos,
   commitments,
   documents,
+  directionInspections,
   overrides
 }: BuildAlertInput): SmartAlert[] {
   const today = getTodayISO();
@@ -159,6 +162,27 @@ export function buildSmartAlerts({
         recommendedAction: "Revisar vigencia, reemplazar o archivar el documento.",
         detail: document.name + ": " + document.observation,
         href: "/projects/" + project.id + "/documents"
+      }, overrideById));
+    });
+
+  directionInspections
+    .filter((inspection) => inspection.projectId === project.id && (inspection.status === "Pendiente" || inspection.status === "En proceso") && inspection.dueDate)
+    .forEach((inspection) => {
+      const daysToDue = daysBetween(today, inspection.dueDate);
+      if (daysToDue > 2) return;
+
+      const isOverdue = daysToDue < 0;
+      alerts.push(withStatus({
+        id: (isOverdue ? "direction-inspection-overdue-" : "direction-inspection-due-soon-") + inspection.id,
+        type: isOverdue ? "Inspeccion vencida" : "Inspeccion proxima a vencer",
+        priority: isOverdue ? (inspection.priority === "Critica" ? "Critica" : "Alta") : "Media",
+        date: inspection.dueDate,
+        projectId: project.id,
+        projectName: project.name,
+        responsible: inspection.responsible,
+        recommendedAction: isOverdue ? "Atender la inspeccion vencida y registrar seguimiento." : "Revisar la inspeccion proxima a vencer y coordinar respuesta.",
+        detail: inspection.description,
+        href: "/projects/" + project.id + "/direction-inspections"
       }, overrideById));
     });
 

@@ -57,7 +57,7 @@ export function PageShell({
       title: "Control",
       items: [
         { label: "Registro Diario", href: "/projects/" + projectId + "/daily-report", permission: "Registro Diario" },
-        { label: "Inspecciones de Dirección", href: "/projects/" + projectId + "/direction-inspections", permission: "Inspecciones de Direccion" },
+        { label: "Inspecciones", href: "/projects/" + projectId + "/direction-inspections", permission: "Inspecciones de Direccion" },
         { label: "Compromisos", href: "/projects/" + projectId + "/commitments", permission: "Compromisos" },
         { label: "Alertas", href: "/projects/" + projectId + "/alerts" }
       ]
@@ -256,9 +256,30 @@ function getMenuItemClass(active: boolean) {
 
 function canView(permission: AdminPermissionModule | undefined, roleConfig: { permissions: Partial<Record<AdminPermissionModule, { Ver?: boolean }>> } | undefined, displayRole: string) {
   if (!permission) return true;
-  if (displayRole === "Administrador") return true;
+  const normalizedRole = normalizeRole(displayRole);
+  if (normalizedRole === "administrador") return true;
+  if (permission === "Inspecciones de Direccion" && !canNavigateToInspections(normalizedRole)) return false;
   if (!roleConfig) return true;
   return roleConfig.permissions[permission]?.Ver ?? false;
+}
+
+function canNavigateToInspections(normalizedRole: string) {
+  return [
+    "administrador",
+    "director",
+    "director administrativo",
+    "residente de obra",
+    "interventoria",
+    "supervisor tecnico"
+  ].includes(normalizedRole);
+}
+
+function normalizeRole(role: string) {
+  return role
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim()
+    .toLowerCase();
 }
 
 

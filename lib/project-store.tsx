@@ -175,9 +175,10 @@ export function ProjectStoreProvider({ children }: { children: ReactNode }) {
         photos,
         commitments,
         documents,
+        directionInspections,
         overrides: alertOverrides
       }),
-    [activities, alertOverrides, budgetItems, commitments, dailyReports, documents, photos, planningItems, project]
+    [activities, alertOverrides, budgetItems, commitments, dailyReports, directionInspections, documents, photos, planningItems, project]
   );
 
   const timeline = useMemo(() => {
