@@ -58,15 +58,29 @@ type DirectionInspectionDiagnostics = {
 
 const writeAllowedRoles = ["Administrador", "Director Administrativo", "Director", "Residente de Obra"];
 
-export async function loadDirectionInspectionsFromSupabase() {
+export async function loadDirectionInspectionsFromSupabase(projectId?: string) {
   if (!supabaseClient) throw new Error("Supabase no esta configurado.");
 
-  const { data: inspectionRows, error } = await supabaseClient
+  let query = supabaseClient
     .from("direction_inspections")
     .select("*")
     .order("created_at", { ascending: false });
 
-  if (error) throw error;
+  if (projectId) {
+    query = query.eq("project_id", projectId);
+  }
+
+  const { data: inspectionRows, error } = await query;
+
+  if (error) {
+    console.error("[DAC DirectionInspections] Error al cargar direction_inspections", {
+      code: error.code,
+      message: error.message,
+      details: error.details,
+      hint: error.hint
+    });
+    throw new Error("Supabase SELECT direction_inspections | " + formatSupabaseError(error));
+  }
 
   const inspections = (inspectionRows ?? []) as DirectionInspectionRow[];
   if (inspections.length === 0) return [];
@@ -78,7 +92,15 @@ export async function loadDirectionInspectionsFromSupabase() {
     .in("inspection_id", ids)
     .order("created_at", { ascending: true });
 
-  if (historyError) throw historyError;
+  if (historyError) {
+    console.error("[DAC DirectionInspections] No fue posible cargar el historial. Se mostrara el listado principal.", {
+      code: historyError.code,
+      message: historyError.message,
+      details: historyError.details,
+      hint: historyError.hint
+    });
+    return inspections.map((row) => mapInspectionRow(row, []));
+  }
 
   const historyByInspection = new Map<string, DirectionInspectionHistory[]>();
   ((historyRows ?? []) as DirectionInspectionHistoryRow[]).forEach((row) => {

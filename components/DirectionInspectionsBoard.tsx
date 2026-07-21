@@ -1,6 +1,6 @@
 "use client";
 
-import { ChangeEvent, FormEvent, useEffect, useMemo, useState } from "react";
+import { ChangeEvent, FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/components/AuthProvider";
 import { getImage, saveImage } from "@/lib/imageStorage";
 import { useProjectStore } from "@/lib/project-store";
@@ -65,6 +65,7 @@ const emptyDraft: InspectionDraft = {
   commitmentNotes: ""
 };
 
+const inspectionLoadTimeoutMs = 15000;
 const inputClass = "focus-ring mt-1 w-full rounded-md border border-dac-primary/15 bg-white px-3 py-2 text-sm font-semibold text-dac-text outline-none";
 
 export function DirectionInspectionsBoard() {
@@ -88,7 +89,9 @@ export function DirectionInspectionsBoard() {
   const [directionInspections, setDirectionInspections] = useState<DirectionInspection[]>([]);
   const [filters, setFilters] = useState<Filters>({ project: "Todos", responsible: "Todos", status: "Todos", priority: "Todas", category: "Todas", date: "" });
   const [message, setMessage] = useState("");
+  const [loadError, setLoadError] = useState("");
   const [isLoading, setIsLoading] = useState(true);
+  const [isCreatingInspection, setIsCreatingInspection] = useState(false);
 
   const responsibles = useMemo(() => {
     return adminUsers.filter((item) => item.active).map((item) => (item.firstName + " " + item.lastName).trim() || item.email);
@@ -116,31 +119,47 @@ export function DirectionInspectionsBoard() {
     };
   }, [directionInspections]);
 
-  useEffect(() => {
-    let active = true;
-    async function loadInspections() {
-      if (!isSupabaseConfigured) {
-        setMessage("Supabase no esta configurado. No es posible cargar inspecciones remotas.");
-        setIsLoading(false);
-        return;
-      }
-
-      try {
-        setIsLoading(true);
-        const inspections = await loadDirectionInspectionsFromSupabase();
-        if (active) setDirectionInspections(inspections);
-      } catch (error) {
-        if (active) setMessage(error instanceof Error ? error.message : "No fue posible cargar inspecciones desde Supabase.");
-      } finally {
-        if (active) setIsLoading(false);
-      }
+  const loadInspections = useCallback(async (options?: { keepCurrentOnError?: boolean; silent?: boolean }) => {
+    if (!isSupabaseConfigured) {
+      setLoadError("Supabase no esta configurado. No es posible cargar inspecciones remotas.");
+      setIsLoading(false);
+      return false;
     }
 
-    loadInspections();
+    try {
+      if (!options?.silent) setMessage("");
+      setLoadError("");
+      setIsLoading(true);
+      const inspections = await withTimeout(
+        loadDirectionInspectionsFromSupabase(project.id),
+        inspectionLoadTimeoutMs,
+        "La carga de inspecciones supero el tiempo de espera. Revisa la conexion e intenta nuevamente."
+      );
+      setDirectionInspections(inspections);
+      return true;
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : "Error desconocido al cargar inspecciones.";
+      console.error("[DAC DirectionInspections] Error controlado al cargar inspecciones", error);
+      if (options?.keepCurrentOnError) {
+        setMessage("La inspeccion fue guardada, pero no fue posible recargar el listado remoto: " + detail);
+      } else {
+        setLoadError(detail);
+      }
+      return false;
+    } finally {
+      setIsLoading(false);
+    }
+  }, [project.id]);
+
+  useEffect(() => {
+    let active = true;
+    if (active) {
+      loadInspections();
+    }
     return () => {
       active = false;
     };
-  }, []);
+  }, [loadInspections]);
 
   async function submitInspection(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -151,6 +170,7 @@ export function DirectionInspectionsBoard() {
     }
 
     try {
+      setIsCreatingInspection(true);
       const now = new Date();
       const createdInspection = await createDirectionInspectionInSupabase({
         projectId: project.id,
@@ -172,25 +192,45 @@ export function DirectionInspectionsBoard() {
         correctionPhotoIds: [],
         updatedBy: currentUser
       });
-      const savedPhotos = await saveFiles(observationFiles, "observacion", createdInspection.id);
-      addDirectionInspectionPhotos(savedPhotos);
+      let photoWarning = "";
+      let savedPhotos: Awaited<ReturnType<typeof saveFiles>> = [];
+      try {
+        savedPhotos = await saveFiles(observationFiles, "observacion", createdInspection.id);
+        addDirectionInspectionPhotos(savedPhotos);
+      } catch (error) {
+        console.error("[DAC DirectionInspections] Error controlado al cargar evidencias de observacion", error);
+        photoWarning = " No fue posible cargar todas las evidencias: " + (error instanceof Error ? error.message : "error desconocido.");
+      }
       let nextInspection = createdInspection;
       if (savedPhotos.length > 0) {
-        const updateResult = await updateDirectionInspectionInSupabase(
-          createdInspection.id,
-          { observationPhotoIds: savedPhotos.map((photo) => photo.id) },
-          currentUser,
-          "Fotografias de observacion",
-          "Se asociaron " + savedPhotos.length + " fotografias a la inspeccion."
-        );
-        nextInspection = mergeDirectionInspectionUpdate(createdInspection, updateResult.inspection, updateResult.history);
+        try {
+          const updateResult = await updateDirectionInspectionInSupabase(
+            createdInspection.id,
+            { observationPhotoIds: savedPhotos.map((photo) => photo.id) },
+            currentUser,
+            "Fotografias de observacion",
+            "Se asociaron " + savedPhotos.length + " fotografias a la inspeccion."
+          );
+          nextInspection = mergeDirectionInspectionUpdate(createdInspection, updateResult.inspection, updateResult.history);
+        } catch (error) {
+          console.error("[DAC DirectionInspections] Error controlado al asociar evidencias a la inspeccion", error);
+          photoWarning = " La inspeccion fue creada, pero no fue posible asociar las evidencias: " + (error instanceof Error ? error.message : "error desconocido.");
+        }
       }
       setDirectionInspections((current) => [nextInspection, ...current]);
       setDraft({ ...emptyDraft, responsible: project.resident });
       setObservationFiles([]);
-      setMessage("Inspeccion registrada en Supabase el " + now.toLocaleString("es-CO") + ".");
+      const reloadConfirmed = await loadInspections({ keepCurrentOnError: true, silent: true });
+      setMessage(
+        reloadConfirmed
+          ? "Inspeccion registrada en Supabase con ID " + createdInspection.id + " el " + now.toLocaleString("es-CO") + "." + photoWarning
+          : "Inspeccion registrada en Supabase con ID " + createdInspection.id + ", pero no fue posible confirmar la recarga del listado remoto." + photoWarning
+      );
     } catch (error) {
+      console.error("[DAC DirectionInspections] Error controlado al crear inspeccion", error);
       setMessage(error instanceof Error ? error.message : "No fue posible guardar la inspeccion en Supabase.");
+    } finally {
+      setIsCreatingInspection(false);
     }
   }
 
@@ -254,8 +294,8 @@ export function DirectionInspectionsBoard() {
               </label>
               {observationFiles.length > 0 && <p className="text-xs font-bold text-dac-primary">{observationFiles.length} fotografias listas para guardar.</p>}
               {message && <p className="rounded-md bg-dac-secondary/10 px-3 py-2 text-sm font-bold text-dac-primary">{message}</p>}
-              <button type="submit" className="focus-ring rounded-md bg-dac-primary px-4 py-3 text-sm font-black text-white hover:bg-dac-secondary">
-                Crear inspeccion
+              <button type="submit" disabled={isCreatingInspection} className="focus-ring rounded-md bg-dac-primary px-4 py-3 text-sm font-black text-white hover:bg-dac-secondary disabled:cursor-not-allowed disabled:bg-dac-primary/40">
+                {isCreatingInspection ? "Guardando..." : "Crear inspeccion"}
               </button>
             </div>
           </form>
@@ -271,7 +311,17 @@ export function DirectionInspectionsBoard() {
 
         <section className="grid gap-4">
           <FiltersPanel filters={filters} projects={projects} responsibles={responsibles} onChange={updateFilter} />
-          {filteredInspections.map((inspection) => (
+          {isLoading && <p className="rounded-lg border border-dac-primary/10 bg-white p-5 text-sm font-semibold text-dac-text/60">Cargando inspecciones...</p>}
+          {!isLoading && loadError && (
+            <div className="rounded-lg border border-dac-alert/20 bg-white p-5">
+              <p className="text-sm font-black text-dac-alert">No fue posible cargar las inspecciones.</p>
+              <p className="mt-2 break-words text-sm font-semibold text-dac-text/70">{loadError}</p>
+              <button type="button" onClick={() => loadInspections()} className="focus-ring mt-4 rounded-md bg-dac-primary px-4 py-2 text-sm font-black text-white hover:bg-dac-secondary">
+                Reintentar
+              </button>
+            </div>
+          )}
+          {!isLoading && !loadError && filteredInspections.map((inspection) => (
             <InspectionCard
               key={inspection.id}
               currentUser={currentUser}
@@ -285,12 +335,11 @@ export function DirectionInspectionsBoard() {
               }
             />
           ))}
-          {isLoading && <p className="rounded-lg border border-dac-primary/10 bg-white p-5 text-sm font-semibold text-dac-text/60">Cargando inspecciones desde Supabase...</p>}
-          {!isLoading && filteredInspections.length === 0 && <p className="rounded-lg border border-dac-primary/10 bg-white p-5 text-sm font-semibold text-dac-text/60">No hay inspecciones para los filtros seleccionados.</p>}
+          {!isLoading && !loadError && filteredInspections.length === 0 && <p className="rounded-lg border border-dac-primary/10 bg-white p-5 text-sm font-semibold text-dac-text/60">No hay inspecciones registradas con los filtros seleccionados.</p>}
         </section>
       </section>
 
-      <DashboardBreakdown inspections={directionInspections} />
+      {!isLoading && !loadError && <DashboardBreakdown inspections={directionInspections} />}
     </div>
   );
 }
@@ -511,6 +560,24 @@ function Breakdown({ title, items }: { title: string; items: Array<{ label: stri
       </div>
     </article>
   );
+}
+
+function withTimeout<T>(promise: Promise<T>, timeoutMs: number, timeoutMessage: string): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const timeoutId = window.setTimeout(() => {
+      reject(new Error(timeoutMessage));
+    }, timeoutMs);
+
+    promise
+      .then((result) => {
+        window.clearTimeout(timeoutId);
+        resolve(result);
+      })
+      .catch((error) => {
+        window.clearTimeout(timeoutId);
+        reject(error);
+      });
+  });
 }
 
 function Metric({ label, value, tone }: { label: string; value: number; tone: "primary" | "secondary" | "alert" }) {
