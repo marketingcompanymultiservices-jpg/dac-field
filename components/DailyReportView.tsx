@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { ReportHeader } from "@/components/ReportHeader";
 import { InfoGrid, ReportSection } from "@/components/ReportSection";
-import { getImagesByDailyReportId, getImagesByDate } from "@/lib/imageStorage";
+import { getImage } from "@/lib/imageStorage";
+import { createDailyReportPhotoSignedUrl } from "@/lib/supabase/daily-reports";
 import type { Commitment, DailyActivity, DailyPhoto, DailyReportEntry, Project } from "@/types";
 
 type DailyReportViewProps = {
@@ -27,7 +28,7 @@ type ParsedMaterialsUsed = {
 };
 
 export function DailyReportView({ project, report, activities, commitments, photos }: DailyReportViewProps) {
-  const [hydratedPhotos, setHydratedPhotos] = useState<Array<{ photo: DailyPhoto; dataUrl: string }>>([]);
+  const [hydratedPhotos, setHydratedPhotos] = useState<Array<{ photo: DailyPhoto; dataUrl?: string; unavailable?: boolean }>>([]);
   const reportActivities = activities.filter((activity) => activity.dailyReportId === report.id || (!activity.dailyReportId && activity.date === report.date));
   const budgetActivities = reportActivities.filter((activity) => Boolean(activity.budgetItemId));
   const freeActivities = reportActivities.filter((activity) => !activity.budgetItemId);
@@ -35,7 +36,7 @@ export function DailyReportView({ project, report, activities, commitments, phot
     if (commitment.createdAt) return commitment.createdAt.slice(0, 10) === report.date;
     return commitment.dueDate === report.date || commitment.origin === "Registro Diario";
   });
-  const reportPhotos = photos.filter((photo) => photo.dailyReportId === report.id || photo.reportId === report.id || (!photo.dailyReportId && !photo.reportId && photo.date === report.date));
+  const reportPhotos = useMemo(() => photos.filter((photo) => photo.dailyReportId === report.id || photo.reportId === report.id), [photos, report.id]);
   const totalPhotos = reportPhotos.length;
   const personnel = parsePersonnel(report);
   const materialsUsed = parseMaterialsUsed(report.material);
@@ -46,8 +47,28 @@ export function DailyReportView({ project, report, activities, commitments, phot
 
     async function loadImages() {
       try {
-        const byReport = await getImagesByDailyReportId(report.id, photos);
-        const entries = byReport.length > 0 ? byReport : await getImagesByDate(report.date, photos);
+        const entries = await Promise.all(
+          reportPhotos.map(async (photo) => {
+            try {
+              if (photo.storagePath) {
+                return { photo, dataUrl: await createDailyReportPhotoSignedUrl(photo.storagePath) };
+              }
+
+              const dataUrl = photo.imageData || (await getImage(photo.id));
+              return dataUrl ? { photo, dataUrl } : { photo, unavailable: true };
+            } catch (error) {
+              console.error("[DAC DailyReportView] Fotografia registrada sin archivo disponible", {
+                file: "components/DailyReportView.tsx",
+                function: "loadImages",
+                reportId: report.id,
+                photoId: photo.id,
+                storagePath: photo.storagePath,
+                message: error instanceof Error ? error.message : String(error)
+              });
+              return { photo, unavailable: true };
+            }
+          })
+        );
         if (active) setHydratedPhotos(entries);
       } catch (error) {
         console.error("[DAC DailyReportView] Excepcion controlada leyendo fotografias del reporte", {
@@ -66,7 +87,7 @@ export function DailyReportView({ project, report, activities, commitments, phot
     return () => {
       active = false;
     };
-  }, [photos, report.date, report.id]);
+  }, [report.id, reportPhotos]);
 
   return (
     <article className="grid w-full min-w-0 gap-4 overflow-hidden print:gap-4 sm:gap-5">
@@ -158,9 +179,15 @@ export function DailyReportView({ project, report, activities, commitments, phot
 
       <ReportSection title="Registro fotografico">
         <div className="grid min-w-0 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          {hydratedPhotos.map(({ photo, dataUrl }, index) => (
+          {hydratedPhotos.map(({ photo, dataUrl, unavailable }, index) => (
             <figure key={photo.id} className="min-w-0 break-inside-avoid rounded-md border border-dac-primary/15 bg-white p-2">
-              <img src={dataUrl} alt={photo.description || photo.name} className="h-auto max-h-72 w-full rounded object-cover sm:h-44 print:h-36" />
+              {dataUrl && !unavailable ? (
+                <img src={dataUrl} alt={photo.description || photo.name} className="h-auto max-h-72 w-full rounded object-cover sm:h-44 print:h-36" />
+              ) : (
+                <div className="flex min-h-36 items-center justify-center rounded bg-dac-secondary/10 p-3 text-center text-xs font-bold text-dac-text/60">
+                  Fotografía registrada, pero el archivo no está disponible.
+                </div>
+              )}
               <figcaption className="mt-2 break-words text-xs font-semibold text-dac-text/70">
                 Foto {index + 1}: {photo.description || photo.name}
               </figcaption>

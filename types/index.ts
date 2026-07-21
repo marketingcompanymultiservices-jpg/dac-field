@@ -314,7 +314,10 @@ export type DailyPhoto = {
   inspectionPhotoType?: "observacion" | "correccion";
   type?: string;
   size?: number;
-  storage?: "indexedDB" | "localStorage";
+  storage?: "indexedDB" | "localStorage" | "supabase";
+  storagePath?: string;
+  mimeType?: string;
+  sizeBytes?: number;
   imageData?: string;
   createdBy?: string;
   updatedBy?: string;
