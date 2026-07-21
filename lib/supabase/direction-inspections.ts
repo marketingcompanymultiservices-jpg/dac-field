@@ -61,9 +61,10 @@ const writeAllowedRoles = ["Administrador", "Director Administrativo", "Director
 export function subscribeToDirectionInspectionChanges(projectId: string, onChange: () => void, onError?: (error: unknown) => void) {
   if (!supabaseClient) throw new Error("Supabase no esta configurado.");
   const client = supabaseClient;
+  const channelName = "direction-inspections-" + projectId + "-" + Date.now() + "-" + Math.random().toString(16).slice(2);
 
   const channel = client
-    .channel("direction-inspections-" + projectId)
+    .channel(channelName)
     .on(
       "postgres_changes",
       { event: "*", schema: "public", table: "direction_inspections", filter: "project_id=eq." + projectId },
