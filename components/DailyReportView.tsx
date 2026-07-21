@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { ReportHeader } from "@/components/ReportHeader";
 import { InfoGrid, ReportSection } from "@/components/ReportSection";
 import { getImage } from "@/lib/imageStorage";
-import { createDailyReportPhotoSignedUrl } from "@/lib/supabase/daily-reports";
+import { createDailyReportPhotoSignedUrl } from "@/lib/supabase/daily-report-photos";
 import type { Commitment, DailyActivity, DailyPhoto, DailyReportEntry, Project } from "@/types";
 
 type DailyReportViewProps = {

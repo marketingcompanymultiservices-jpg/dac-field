@@ -21,12 +21,7 @@ import { buildActivityProductivity, calculateProductivitySummary } from "@/lib/p
 import { clearAppState, loadAppState, saveAppState } from "@/lib/storage";
 import { recalculateProjectBudgetExecution } from "@/lib/supabase/progress-engine";
 import { createDraftProjectBudgetInSupabase, loadProjectBudgetFromSupabase, replaceProjectBudgetInSupabase, updateProjectBudgetItemInSupabase } from "@/lib/supabase/budget";
-import {
-  loadDailyReportBundleFromSupabase,
-  removeDailyReportPhotosFromStorage,
-  saveDailyReportBundleToSupabase,
-  uploadDailyReportPhotoToStorage
-} from "@/lib/supabase/daily-reports";
+import { loadDailyReportBundleFromSupabase, saveDailyReportBundleToSupabase } from "@/lib/supabase/daily-reports";
 import { loadDirectionInspectionsFromSupabase, subscribeToDirectionInspectionChanges } from "@/lib/supabase/direction-inspections";
 import { loadProjectInitialSurveyItems, saveProjectInitialSurveyItems } from "@/lib/supabase/initial-survey";
 import { isSupabaseConfigured } from "@/lib/supabaseClient";
@@ -292,6 +287,7 @@ export function ProjectStoreProvider({ children }: { children: ReactNode }) {
     const uploadedPhotoPaths: string[] = [];
     const pendingReportPhotos = photos.filter((photo) => normalizeProjectId(photo.projectId) === projectIdForDailyReports && photo.date === report.date && !photo.dailyReportId && !photo.reportId);
     let reportPhotos: DailyPhoto[] = [];
+    const { removeDailyReportPhotosFromStorage, uploadDailyReportPhotoToStorage } = await import("@/lib/supabase/daily-report-photos");
 
     try {
       reportPhotos = await Promise.all(
