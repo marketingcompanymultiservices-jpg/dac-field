@@ -7,11 +7,13 @@ import { useProjectStore } from "@/lib/project-store";
 import { isSupabaseConfigured } from "@/lib/supabaseClient";
 import {
   createDirectionInspectionInSupabase,
+  loadDirectionInspectionResponsibles,
   loadDirectionInspectionsFromSupabase,
   mergeDirectionInspectionUpdate,
   subscribeToDirectionInspectionChanges,
   updateDirectionInspectionInSupabase
 } from "@/lib/supabase/direction-inspections";
+import type { DirectionInspectionResponsible } from "@/lib/supabase/direction-inspections";
 import type { DirectionInspection, DirectionInspectionCategory, DirectionInspectionPriority, DirectionInspectionStatus } from "@/types";
 
 type InspectionDraft = {
@@ -73,7 +75,6 @@ export function DirectionInspectionsBoard() {
   const { profile, user } = useAuth();
   const {
     adminRoles,
-    adminUsers,
     addDirectionInspectionPhotos,
     currentUser: localCurrentUser,
     photos,
@@ -87,7 +88,7 @@ export function DirectionInspectionsBoard() {
   const canEditInspection = hasInspectionPermission("Editar", roleConfig, roleName);
   const canViewAllInspections = canSeeAllInspections(roleName);
   const currentProfileId = profile?.id ?? localCurrentUser.id;
-  const responsibleOptions = useMemo(() => buildResponsibleOptions(adminUsers, profile, localCurrentUser), [adminUsers, localCurrentUser, profile]);
+  const [responsibleOptions, setResponsibleOptions] = useState<DirectionInspectionResponsible[]>([]);
   const defaultResponsibleId = useMemo(() => findDefaultResponsibleId(responsibleOptions, project.resident), [project.resident, responsibleOptions]);
   const [draft, setDraft] = useState<InspectionDraft>({ ...emptyDraft, responsibleProfileId: defaultResponsibleId });
   const [observationFiles, setObservationFiles] = useState<File[]>([]);
@@ -97,6 +98,7 @@ export function DirectionInspectionsBoard() {
   const [filters, setFilters] = useState<Filters>({ project: "Todos", responsible: "Todos", status: "Todos", priority: "Todas", category: "Todas", date: "" });
   const [message, setMessage] = useState("");
   const [loadError, setLoadError] = useState("");
+  const [responsiblesError, setResponsiblesError] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [isCreatingInspection, setIsCreatingInspection] = useState(false);
 
@@ -109,6 +111,31 @@ export function DirectionInspectionsBoard() {
       return { ...current, responsibleProfileId: defaultResponsibleId };
     });
   }, [defaultResponsibleId, responsibleOptions]);
+
+  useEffect(() => {
+    let active = true;
+    if (!isSupabaseConfigured) {
+      setResponsiblesError("Supabase no esta configurado. No es posible cargar responsables reales.");
+      return;
+    }
+
+    loadDirectionInspectionResponsibles()
+      .then((responsibles) => {
+        if (!active) return;
+        setResponsibleOptions(responsibles);
+        setResponsiblesError("");
+      })
+      .catch((error) => {
+        if (!active) return;
+        const detail = error instanceof Error ? error.message : "No fue posible cargar responsables desde profiles.";
+        setResponsibleOptions([]);
+        setResponsiblesError(detail);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, []);
 
   useEffect(() => {
     if (typeof window !== "undefined" && new URLSearchParams(window.location.search).get("new") === "1" && canCreateInspection) {
@@ -349,6 +376,7 @@ export function DirectionInspectionsBoard() {
               <ReadOnly label="Obra" value={project.name} />
               <ReadOnly label="Director que registra" value={currentUser} />
               <Select label="Responsable" value={draft.responsibleProfileId} options={responsibleIds} labels={responsibleLabels} onChange={(value) => setDraft({ ...draft, responsibleProfileId: value })} />
+              {responsiblesError && <p className="rounded-md bg-dac-alert/10 px-3 py-2 text-sm font-bold text-dac-alert">{responsiblesError}</p>}
               <Select label="Estado" value={draft.status} options={statuses} onChange={(value) => setDraft({ ...draft, status: value as DirectionInspectionStatus })} />
               <div className="grid gap-3 sm:grid-cols-2">
                 <Field label="Torre" value={draft.tower} onChange={(value) => setDraft({ ...draft, tower: value })} />
@@ -733,31 +761,6 @@ function canSeeAllInspections(roleName: string) {
 
 function normalizeRole(role: string) {
   return normalizeIdentity(role);
-}
-
-function buildResponsibleOptions(
-  adminUsers: Array<{ id: string; firstName: string; lastName: string; email: string; active: boolean }>,
-  profile: { id?: string; firstName?: string; lastName?: string; email?: string } | null,
-  localUser: { id?: string; firstName?: string; lastName?: string; email?: string; active?: boolean }
-) {
-  const options = new Map<string, { id: string; name: string; email: string }>();
-  adminUsers
-    .filter((item) => item.active && item.id)
-    .forEach((item) => {
-      options.set(item.id, {
-        id: item.id,
-        name: [item.firstName, item.lastName].filter(Boolean).join(" ").trim() || item.email,
-        email: item.email
-      });
-    });
-
-  [profile, localUser].forEach((item) => {
-    if (!item?.id || options.has(item.id)) return;
-    const name = [item.firstName, item.lastName].filter(Boolean).join(" ").trim() || item.email || item.id;
-    options.set(item.id, { id: item.id, name, email: item.email ?? "" });
-  });
-
-  return Array.from(options.values()).sort((a, b) => a.name.localeCompare(b.name));
 }
 
 function findDefaultResponsibleId(options: Array<{ id: string; name: string; email: string }>, projectResident: string) {

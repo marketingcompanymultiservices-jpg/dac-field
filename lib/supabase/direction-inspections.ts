@@ -40,6 +40,13 @@ type DirectionInspectionHistoryRow = {
   created_at: string;
 };
 
+export type DirectionInspectionResponsible = {
+  id: string;
+  name: string;
+  email: string;
+  role: string;
+};
+
 type DirectionInspectionInsert = Omit<DirectionInspection, "id" | "createdAt" | "updatedAt" | "history">;
 
 type SupabaseDiagnosticErrorInput = {
@@ -147,12 +154,52 @@ export async function loadDirectionInspectionsFromSupabase(projectId?: string) {
   return inspections.map((row) => mapInspectionRow(row, historyByInspection.get(row.id) ?? []));
 }
 
+export async function loadDirectionInspectionResponsibles() {
+  if (!supabaseClient) throw new Error("Supabase no esta configurado.");
+
+  const { data, error } = await supabaseClient
+    .from("profiles")
+    .select("id,nombre,correo,rol,activo")
+    .eq("activo", true)
+    .order("nombre", { ascending: true });
+
+  if (error) {
+    console.error("[DAC DirectionInspections] Error al cargar responsables desde profiles", {
+      code: error.code,
+      message: error.message,
+      details: error.details,
+      hint: error.hint
+    });
+    throw new Error("Supabase SELECT profiles | " + formatSupabaseError(error));
+  }
+
+  return ((data ?? []) as Array<{ id: string; nombre: string | null; correo: string | null; rol: string | null }>).map((row) => ({
+    id: row.id,
+    name: row.nombre?.trim() || row.correo?.trim() || row.id,
+    email: row.correo?.trim() ?? "",
+    role: row.rol?.trim() ?? ""
+  }));
+}
+
 export async function createDirectionInspectionInSupabase(inspection: DirectionInspectionInsert) {
   if (!supabaseClient) throw new Error("Supabase no esta configurado.");
 
   const payload = toInspectionRow(inspection);
   const diagnostics = await getDirectionInspectionDiagnostics();
   const missingFields = getMissingRequiredInspectionFields(payload);
+
+  if (typeof payload.responsible_profile_id !== "string" || !isUuid(payload.responsible_profile_id)) {
+    throw new SupabaseDiagnosticError({
+      operation: "Validacion local antes de INSERT en direction_inspections",
+      error: {
+        code: "DAC_INVALID_RESPONSIBLE_PROFILE_ID",
+        message: "El responsable debe usar el UUID real de public.profiles.",
+        details: "Valor recibido: " + String(payload.responsible_profile_id ?? "sin valor")
+      },
+      payload,
+      diagnostics
+    });
+  }
 
   if (missingFields.length > 0) {
     throw new SupabaseDiagnosticError({
@@ -488,6 +535,10 @@ function normalizeSupabaseError(error: unknown) {
     hint: "",
     status: ""
   };
+}
+
+function isUuid(value: string) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
 }
 
 class SupabaseDiagnosticError extends Error {
