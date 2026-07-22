@@ -56,6 +56,7 @@ export type SmartAlert = {
   activityId?: string;
   activityName?: string;
   responsible: string;
+  responsibleProfileId?: string;
   status: AlertStatus;
   recommendedAction: string;
   detail: string;
@@ -497,6 +498,9 @@ export type DirectionInspection = {
   createdBy: string;
   director: string;
   responsible: string;
+  responsibleProfileId?: string;
+  responsibleName?: string;
+  responsibleEmail?: string;
   status: DirectionInspectionStatus;
   tower: string;
   floor: string;

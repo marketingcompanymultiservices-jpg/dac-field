@@ -51,7 +51,7 @@ export function DirectorControlCenter() {
   const [dashboardDirectionInspections, setDashboardDirectionInspections] = useState<DirectionInspection[]>(directionInspections);
   const roleName = profile?.role ?? currentUser.role;
   const roleConfig = adminRoles.find((role) => role.name === roleName);
-  const currentUserAliases = buildUserAliases(profile, currentUser);
+  const currentProfileId = profile?.id ?? currentUser.id;
   const canViewAllDirectionInspections = canSeeAllInspections(roleName);
   const weekStart = getWeekStartISO(today);
   const todayActivities = activities.filter((activity) => activity.date === today);
@@ -64,7 +64,8 @@ export function DirectorControlCenter() {
   const productivitySummary = calculateProductivitySummary(productivityRows, weekStart);
   const topActivities = productivityRows.filter((row) => row.executedQuantity > 0).sort((a, b) => b.executedValue - a.executedValue).slice(0, 3);
   const inactiveActivities = productivityRows.filter((row) => row.status === "Sin movimiento" || row.status === "Baja productividad").slice(0, 3);
-  const executiveAlerts = alerts.filter((alert) => (alert.priority === "Critica" || alert.priority === "Alta") && alert.status !== "Cerrada").slice(0, 4);
+  const visibleAlerts = alerts.filter((alert) => isAlertVisibleForInspections(alert, canViewAllDirectionInspections, currentProfileId));
+  const executiveAlerts = visibleAlerts.filter((alert) => (alert.priority === "Critica" || alert.priority === "Alta") && alert.status !== "Cerrada").slice(0, 4);
   const completedActivities = progressItems.filter((item) => item.progress >= 100).length;
   const activeActivities = progressItems.filter((item) => item.progress > 0 && item.progress < 100).length;
   const pendingActivities = progressItems.filter((item) => item.progress === 0).length;
@@ -108,7 +109,7 @@ export function DirectorControlCenter() {
   const dashboardInspections = dashboardDirectionInspections.filter((inspection) => {
     if (inspection.projectId !== project.id) return false;
     if (canViewAllDirectionInspections) return true;
-    return currentUserAliases.has(normalizeIdentity(inspection.responsible));
+    return Boolean(currentProfileId && inspection.responsibleProfileId === currentProfileId);
   });
   const pendingDirectionInspections = dashboardInspections.filter((inspection) => inspection.status === "Pendiente" || inspection.status === "En proceso").length;
   const overdueDirectionInspections = dashboardInspections.filter((inspection) => (inspection.status === "Pendiente" || inspection.status === "En proceso") && inspection.dueDate < today).length;
@@ -421,21 +422,14 @@ function canNavigateToInspections(normalizedRole: string) {
   ].includes(normalizedRole);
 }
 
-function buildUserAliases(
-  profile: { id?: string; firstName?: string; lastName?: string; email?: string } | null,
-  localUser: { id?: string; firstName?: string; lastName?: string; email?: string }
-) {
-  const profileName = profile ? [profile.firstName, profile.lastName].filter(Boolean).join(" ") : "";
-  const localName = [localUser.firstName, localUser.lastName].filter(Boolean).join(" ");
-  return new Set(
-    [profileName, localName, profile?.email, profile?.id, localUser.email, localUser.id]
-      .filter(Boolean)
-      .map((value) => normalizeIdentity(String(value)))
-  );
-}
-
 function normalizeRole(role: string) {
   return normalizeIdentity(role);
+}
+
+function isAlertVisibleForInspections(alert: SmartAlert, canViewAllInspections: boolean, currentProfileId: string | undefined) {
+  if (alert.type !== "Inspeccion vencida" && alert.type !== "Inspeccion proxima a vencer") return true;
+  if (canViewAllInspections) return true;
+  return Boolean(currentProfileId && alert.responsibleProfileId === currentProfileId);
 }
 
 function normalizeIdentity(value: string) {

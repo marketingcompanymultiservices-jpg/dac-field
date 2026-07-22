@@ -15,7 +15,7 @@ import {
 import type { DirectionInspection, DirectionInspectionCategory, DirectionInspectionPriority, DirectionInspectionStatus } from "@/types";
 
 type InspectionDraft = {
-  responsible: string;
+  responsibleProfileId: string;
   status: DirectionInspectionStatus;
   tower: string;
   floor: string;
@@ -53,7 +53,7 @@ const categories: DirectionInspectionCategory[] = [
 ];
 
 const emptyDraft: InspectionDraft = {
-  responsible: "",
+  responsibleProfileId: "",
   status: "Pendiente",
   tower: "",
   floor: "",
@@ -86,8 +86,10 @@ export function DirectionInspectionsBoard() {
   const canCreateInspection = hasInspectionPermission("Crear", roleConfig, roleName);
   const canEditInspection = hasInspectionPermission("Editar", roleConfig, roleName);
   const canViewAllInspections = canSeeAllInspections(roleName);
-  const currentUserAliases = useMemo(() => buildUserAliases(profile, user?.email, localCurrentUser), [localCurrentUser, profile, user?.email]);
-  const [draft, setDraft] = useState<InspectionDraft>({ ...emptyDraft, responsible: project.resident });
+  const currentProfileId = profile?.id ?? localCurrentUser.id;
+  const responsibleOptions = useMemo(() => buildResponsibleOptions(adminUsers, profile, localCurrentUser), [adminUsers, localCurrentUser, profile]);
+  const defaultResponsibleId = useMemo(() => findDefaultResponsibleId(responsibleOptions, project.resident), [project.resident, responsibleOptions]);
+  const [draft, setDraft] = useState<InspectionDraft>({ ...emptyDraft, responsibleProfileId: defaultResponsibleId });
   const [observationFiles, setObservationFiles] = useState<File[]>([]);
   const [directionInspections, setDirectionInspections] = useState<DirectionInspection[]>([]);
   const [selectedInspectionId, setSelectedInspectionId] = useState("");
@@ -98,9 +100,15 @@ export function DirectionInspectionsBoard() {
   const [isLoading, setIsLoading] = useState(true);
   const [isCreatingInspection, setIsCreatingInspection] = useState(false);
 
-  const responsibles = useMemo(() => {
-    return adminUsers.filter((item) => item.active).map((item) => (item.firstName + " " + item.lastName).trim() || item.email);
-  }, [adminUsers]);
+  const responsibleLabels = useMemo(() => Object.fromEntries(responsibleOptions.map((item) => [item.id, item.name])), [responsibleOptions]);
+  const responsibleIds = useMemo(() => responsibleOptions.map((item) => item.id), [responsibleOptions]);
+
+  useEffect(() => {
+    setDraft((current) => {
+      if (current.responsibleProfileId && responsibleOptions.some((item) => item.id === current.responsibleProfileId)) return current;
+      return { ...current, responsibleProfileId: defaultResponsibleId };
+    });
+  }, [defaultResponsibleId, responsibleOptions]);
 
   useEffect(() => {
     if (typeof window !== "undefined" && new URLSearchParams(window.location.search).get("new") === "1" && canCreateInspection) {
@@ -112,14 +120,14 @@ export function DirectionInspectionsBoard() {
     return directionInspections.filter((inspection) => {
       if (inspection.projectId !== project.id) return false;
       if (canViewAllInspections) return true;
-      return currentUserAliases.has(normalizeIdentity(inspection.responsible));
+      return Boolean(currentProfileId && inspection.responsibleProfileId === currentProfileId);
     });
-  }, [canViewAllInspections, currentUserAliases, directionInspections, project.id]);
+  }, [canViewAllInspections, currentProfileId, directionInspections, project.id]);
 
   const filteredInspections = useMemo(() => {
     return scopedInspections.filter((inspection) => {
       const matchesProject = filters.project === "Todos" || inspection.projectId === filters.project;
-      const matchesResponsible = filters.responsible === "Todos" || inspection.responsible === filters.responsible;
+      const matchesResponsible = filters.responsible === "Todos" || inspection.responsibleProfileId === filters.responsible;
       const matchesStatus = filters.status === "Todos" || inspection.status === filters.status;
       const matchesPriority = filters.priority === "Todas" || inspection.priority === filters.priority;
       const matchesCategory = filters.category === "Todas" || inspection.category === filters.category;
@@ -204,7 +212,8 @@ export function DirectionInspectionsBoard() {
   async function submitInspection(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setMessage("");
-    if (!draft.description.trim() || !draft.responsible || !draft.dueDate) {
+    const selectedResponsible = responsibleOptions.find((item) => item.id === draft.responsibleProfileId);
+    if (!draft.description.trim() || !selectedResponsible || !draft.dueDate) {
       setMessage("Descripcion, responsable y fecha limite son obligatorios.");
       return;
     }
@@ -217,7 +226,10 @@ export function DirectionInspectionsBoard() {
         projectName: project.name,
         createdBy: currentUser,
         director: currentUser,
-        responsible: draft.responsible,
+        responsible: selectedResponsible.name,
+        responsibleProfileId: selectedResponsible.id,
+        responsibleName: selectedResponsible.name,
+        responsibleEmail: selectedResponsible.email,
         status: draft.status,
         tower: draft.tower,
         floor: draft.floor,
@@ -260,7 +272,7 @@ export function DirectionInspectionsBoard() {
       setDirectionInspections((current) => [nextInspection, ...current]);
       setSelectedInspectionId(nextInspection.id);
       setShowCreateForm(false);
-      setDraft({ ...emptyDraft, responsible: project.resident });
+      setDraft({ ...emptyDraft, responsibleProfileId: defaultResponsibleId });
       setObservationFiles([]);
       const reloadConfirmed = await loadInspections({ keepCurrentOnError: true, silent: true });
       setMessage(
@@ -336,7 +348,7 @@ export function DirectionInspectionsBoard() {
             <div className="mt-4 grid gap-3">
               <ReadOnly label="Obra" value={project.name} />
               <ReadOnly label="Director que registra" value={currentUser} />
-              <Select label="Responsable" value={draft.responsible} options={responsibles} onChange={(value) => setDraft({ ...draft, responsible: value })} />
+              <Select label="Responsable" value={draft.responsibleProfileId} options={responsibleIds} labels={responsibleLabels} onChange={(value) => setDraft({ ...draft, responsibleProfileId: value })} />
               <Select label="Estado" value={draft.status} options={statuses} onChange={(value) => setDraft({ ...draft, status: value as DirectionInspectionStatus })} />
               <div className="grid gap-3 sm:grid-cols-2">
                 <Field label="Torre" value={draft.tower} onChange={(value) => setDraft({ ...draft, tower: value })} />
@@ -373,7 +385,7 @@ export function DirectionInspectionsBoard() {
           </aside>
         )}
 
-        <FiltersPanel filters={filters} projects={projects} responsibles={responsibles} onChange={updateFilter} />
+        <FiltersPanel filters={filters} projects={projects} responsibles={responsibleIds} responsibleLabels={responsibleLabels} onChange={updateFilter} />
         {isLoading && <p className="rounded-lg border border-dac-primary/10 bg-white p-5 text-sm font-semibold text-dac-text/60">Cargando inspecciones...</p>}
         {!isLoading && loadError && (
           <div className="rounded-lg border border-dac-alert/20 bg-white p-5">
@@ -426,7 +438,7 @@ function InspectionListItem({ inspection, onView }: { inspection: DirectionInspe
           </div>
           <h3 className="mt-3 break-words text-lg font-black text-dac-primary">{inspection.description}</h3>
           <dl className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-            <Info label="Responsable" value={inspection.responsible} />
+            <Info label="Responsable" value={getInspectionResponsibleName(inspection)} />
             <Info label="Fecha limite" value={inspection.dueDate} />
             <Info label="Estado" value={inspection.status} />
             <Info label="Prioridad" value={inspection.priority} />
@@ -521,7 +533,7 @@ function InspectionCard({
           </div>
           <h3 className="mt-3 text-xl font-black text-dac-primary">{inspection.description}</h3>
           <dl className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
-            <Info label="Responsable" value={inspection.responsible} />
+            <Info label="Responsable" value={getInspectionResponsibleName(inspection)} />
             <Info label="Ubicacion" value={[inspection.tower, inspection.floor, inspection.apartment, inspection.workFront].filter(Boolean).join(" / ") || "Sin ubicacion"} />
             <Info label="Fecha limite" value={inspection.dueDate} />
             <Info label="Director" value={inspection.director} />
@@ -613,13 +625,25 @@ function PhotoStrip({ title, photos }: { title: string; photos: Array<{ id: stri
   );
 }
 
-function FiltersPanel({ filters, projects, responsibles, onChange }: { filters: Filters; projects: Array<{ id: string; name: string }>; responsibles: string[]; onChange: (key: keyof Filters, value: string) => void }) {
+function FiltersPanel({
+  filters,
+  projects,
+  responsibles,
+  responsibleLabels,
+  onChange
+}: {
+  filters: Filters;
+  projects: Array<{ id: string; name: string }>;
+  responsibles: string[];
+  responsibleLabels: Record<string, string>;
+  onChange: (key: keyof Filters, value: string) => void;
+}) {
   return (
     <section className="rounded-lg border border-dac-primary/15 bg-white p-4 shadow-panel">
       <p className="text-sm font-black uppercase text-dac-secondary">Consultas</p>
       <div className="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-6">
         <Select label="Obra" value={filters.project} options={["Todos", ...projects.map((item) => item.id)]} labels={{ [projects[0]?.id ?? ""]: projects[0]?.name ?? "" }} onChange={(value) => onChange("project", value)} />
-        <Select label="Responsable" value={filters.responsible} options={["Todos", ...responsibles]} onChange={(value) => onChange("responsible", value)} />
+        <Select label="Responsable" value={filters.responsible} options={["Todos", ...responsibles]} labels={{ Todos: "Todos", ...responsibleLabels }} onChange={(value) => onChange("responsible", value)} />
         <Select label="Estado" value={filters.status} options={["Todos", ...statuses]} onChange={(value) => onChange("status", value)} />
         <Select label="Prioridad" value={filters.priority} options={["Todas", ...priorities]} onChange={(value) => onChange("priority", value)} />
         <Select label="Clasificacion" value={filters.category} options={["Todas", ...categories]} onChange={(value) => onChange("category", value)} />
@@ -630,7 +654,13 @@ function FiltersPanel({ filters, projects, responsibles, onChange }: { filters: 
 }
 
 function DashboardBreakdown({ inspections }: { inspections: DirectionInspection[] }) {
-  const byResponsible = Array.from(new Set(inspections.map((item) => item.responsible))).map((responsible) => ({ label: responsible, value: inspections.filter((item) => item.responsible === responsible).length }));
+  const responsibleGroups = new Map<string, { label: string; value: number }>();
+  inspections.forEach((inspection) => {
+    const key = inspection.responsibleProfileId ?? inspection.id;
+    const current = responsibleGroups.get(key) ?? { label: getInspectionResponsibleName(inspection), value: 0 };
+    responsibleGroups.set(key, { ...current, value: current.value + 1 });
+  });
+  const byResponsible = Array.from(responsibleGroups.values());
   const byCategory = categories.map((category) => ({ label: category, value: inspections.filter((item) => item.category === category).length })).filter((item) => item.value > 0);
 
   return (
@@ -701,23 +731,47 @@ function canSeeAllInspections(roleName: string) {
   return ["administrador", "director", "director administrativo"].includes(normalizeRole(roleName));
 }
 
-function buildUserAliases(
+function normalizeRole(role: string) {
+  return normalizeIdentity(role);
+}
+
+function buildResponsibleOptions(
+  adminUsers: Array<{ id: string; firstName: string; lastName: string; email: string; active: boolean }>,
   profile: { id?: string; firstName?: string; lastName?: string; email?: string } | null,
-  authEmail: string | undefined,
-  localUser: { id?: string; firstName?: string; lastName?: string; email?: string }
+  localUser: { id?: string; firstName?: string; lastName?: string; email?: string; active?: boolean }
 ) {
-  const fullName = profile
-    ? [profile.firstName, profile.lastName].filter(Boolean).join(" ")
-    : [localUser.firstName, localUser.lastName].filter(Boolean).join(" ");
-  return new Set(
-    [fullName, profile?.email, authEmail, profile?.id, localUser.email, localUser.id]
-      .filter(Boolean)
-      .map((value) => normalizeIdentity(String(value)))
+  const options = new Map<string, { id: string; name: string; email: string }>();
+  adminUsers
+    .filter((item) => item.active && item.id)
+    .forEach((item) => {
+      options.set(item.id, {
+        id: item.id,
+        name: [item.firstName, item.lastName].filter(Boolean).join(" ").trim() || item.email,
+        email: item.email
+      });
+    });
+
+  [profile, localUser].forEach((item) => {
+    if (!item?.id || options.has(item.id)) return;
+    const name = [item.firstName, item.lastName].filter(Boolean).join(" ").trim() || item.email || item.id;
+    options.set(item.id, { id: item.id, name, email: item.email ?? "" });
+  });
+
+  return Array.from(options.values()).sort((a, b) => a.name.localeCompare(b.name));
+}
+
+function findDefaultResponsibleId(options: Array<{ id: string; name: string; email: string }>, projectResident: string) {
+  const normalizedResident = normalizeIdentity(projectResident);
+  return (
+    options.find((item) => normalizeIdentity(item.name) === normalizedResident)?.id ??
+    options.find((item) => normalizeIdentity(item.name).includes(normalizedResident) || normalizedResident.includes(normalizeIdentity(item.name)))?.id ??
+    options[0]?.id ??
+    ""
   );
 }
 
-function normalizeRole(role: string) {
-  return normalizeIdentity(role);
+function getInspectionResponsibleName(inspection: DirectionInspection) {
+  return inspection.responsibleName || inspection.responsibleEmail || inspection.responsible || "Sin responsable";
 }
 
 function normalizeIdentity(value: string) {

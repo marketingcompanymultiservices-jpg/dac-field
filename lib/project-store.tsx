@@ -1150,7 +1150,7 @@ export function ProjectStoreProvider({ children }: { children: ReactNode }) {
             user: inspection.createdBy,
             date: now,
             action: "Creacion",
-            detail: "Inspeccion creada y asignada a " + inspection.responsible + "."
+            detail: "Inspeccion creada y asignada a " + (inspection.responsibleName || inspection.responsibleEmail || inspection.responsible) + "."
           }
         ]
       };

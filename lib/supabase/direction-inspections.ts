@@ -9,6 +9,9 @@ type DirectionInspectionRow = {
   created_by: string;
   director: string;
   responsible: string;
+  responsible_profile_id: string | null;
+  responsible_name: string | null;
+  responsible_email: string | null;
   status: DirectionInspection["status"];
   tower: string | null;
   floor: string | null;
@@ -263,6 +266,9 @@ function mapInspectionRow(row: DirectionInspectionRow, history: DirectionInspect
     createdBy: row.created_by,
     director: row.director,
     responsible: row.responsible,
+    responsibleProfileId: row.responsible_profile_id ?? undefined,
+    responsibleName: row.responsible_name ?? undefined,
+    responsibleEmail: row.responsible_email ?? undefined,
     status: row.status,
     tower: row.tower ?? "",
     floor: row.floor ?? "",
@@ -301,6 +307,9 @@ function toInspectionRow(inspection: DirectionInspectionInsert) {
     created_by: inspection.createdBy,
     director: inspection.director,
     responsible: inspection.responsible,
+    responsible_profile_id: inspection.responsibleProfileId,
+    responsible_name: inspection.responsibleName,
+    responsible_email: inspection.responsibleEmail,
     status: inspection.status,
     tower: inspection.tower,
     floor: inspection.floor,
@@ -327,6 +336,9 @@ function toInspectionUpdateRow(update: Partial<DirectionInspection>) {
   if (update.createdBy !== undefined) payload.created_by = update.createdBy;
   if (update.director !== undefined) payload.director = update.director;
   if (update.responsible !== undefined) payload.responsible = update.responsible;
+  if (update.responsibleProfileId !== undefined) payload.responsible_profile_id = update.responsibleProfileId;
+  if (update.responsibleName !== undefined) payload.responsible_name = update.responsibleName;
+  if (update.responsibleEmail !== undefined) payload.responsible_email = update.responsibleEmail;
   if (update.status !== undefined) payload.status = update.status;
   if (update.tower !== undefined) payload.tower = update.tower;
   if (update.floor !== undefined) payload.floor = update.floor;
@@ -416,6 +428,9 @@ function getMissingRequiredInspectionFields(payload: Record<string, unknown>) {
     "created_by",
     "director",
     "responsible",
+    "responsible_profile_id",
+    "responsible_name",
+    "responsible_email",
     "status",
     "category",
     "priority",

@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
+import { useAuth } from "@/components/AuthProvider";
 import { useProjectStore } from "@/lib/project-store";
 import type { AlertPriority, AlertStatus, AlertType, SmartAlert } from "@/types";
 
@@ -25,11 +26,17 @@ const types: Array<"Todos" | AlertType> = [
   "Actividad con baja productividad",
   "Planificacion vencida",
   "Documento pendiente",
-  "Observacion de interventoria pendiente"
+  "Observacion de interventoria pendiente",
+  "Inspeccion vencida",
+  "Inspeccion proxima a vencer"
 ];
 
 export function AlertsCenter() {
-  const { alerts, updateAlertStatus } = useProjectStore();
+  const { profile } = useAuth();
+  const { alerts, currentUser, updateAlertStatus } = useProjectStore();
+  const roleName = profile?.role ?? currentUser.role;
+  const currentProfileId = profile?.id ?? currentUser.id;
+  const canViewAllDirectionInspections = canSeeAllInspections(roleName);
   const [filters, setFilters] = useState<AlertFilters>({
     priority: "Todas",
     status: "Todos",
@@ -38,9 +45,13 @@ export function AlertsCenter() {
     date: ""
   });
 
-  const responsibles = ["Todos", ...Array.from(new Set(alerts.map((alert) => alert.responsible).filter(Boolean)))];
+  const visibleAlerts = useMemo(
+    () => alerts.filter((alert) => isAlertVisibleForInspections(alert, canViewAllDirectionInspections, currentProfileId)),
+    [alerts, canViewAllDirectionInspections, currentProfileId]
+  );
+  const responsibles = ["Todos", ...Array.from(new Set(visibleAlerts.map((alert) => alert.responsible).filter(Boolean)))];
   const filteredAlerts = useMemo(() => {
-    return alerts.filter((alert) => {
+    return visibleAlerts.filter((alert) => {
       const matchesPriority = filters.priority === "Todas" || alert.priority === filters.priority;
       const matchesStatus = filters.status === "Todos" || alert.status === filters.status;
       const matchesResponsible = filters.responsible === "Todos" || alert.responsible === filters.responsible;
@@ -48,12 +59,12 @@ export function AlertsCenter() {
       const matchesDate = !filters.date || alert.date === filters.date;
       return matchesPriority && matchesStatus && matchesResponsible && matchesType && matchesDate;
     });
-  }, [alerts, filters]);
+  }, [filters, visibleAlerts]);
 
-  const total = alerts.length;
-  const critical = alerts.filter((alert) => alert.priority === "Critica" && alert.status !== "Cerrada").length;
-  const pending = alerts.filter((alert) => alert.status === "Nueva" || alert.status === "En proceso").length;
-  const attended = alerts.filter((alert) => alert.status === "Atendida" || alert.status === "Cerrada").length;
+  const total = visibleAlerts.length;
+  const critical = visibleAlerts.filter((alert) => alert.priority === "Critica" && alert.status !== "Cerrada").length;
+  const pending = visibleAlerts.filter((alert) => alert.status === "Nueva" || alert.status === "En proceso").length;
+  const attended = visibleAlerts.filter((alert) => alert.status === "Atendida" || alert.status === "Cerrada").length;
 
   function updateFilter(key: keyof AlertFilters, value: string) {
     setFilters((current) => ({ ...current, [key]: value }));
@@ -194,3 +205,21 @@ function getStatusClass(status: AlertStatus) {
 }
 
 const controlClass = "focus-ring mt-1 w-full rounded-md border border-dac-primary/15 bg-white px-3 py-2 text-sm font-semibold text-dac-text shadow-sm outline-none";
+
+function canSeeAllInspections(roleName: string) {
+  return ["administrador", "director", "director administrativo"].includes(normalizeRole(roleName));
+}
+
+function isAlertVisibleForInspections(alert: SmartAlert, canViewAllInspections: boolean, currentProfileId: string | undefined) {
+  if (alert.type !== "Inspeccion vencida" && alert.type !== "Inspeccion proxima a vencer") return true;
+  if (canViewAllInspections) return true;
+  return Boolean(currentProfileId && alert.responsibleProfileId === currentProfileId);
+}
+
+function normalizeRole(role: string) {
+  return role
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim()
+    .toLowerCase();
+}

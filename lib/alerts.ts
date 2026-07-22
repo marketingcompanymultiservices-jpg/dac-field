@@ -179,7 +179,8 @@ export function buildSmartAlerts({
         date: inspection.dueDate,
         projectId: project.id,
         projectName: project.name,
-        responsible: inspection.responsible,
+        responsible: inspection.responsibleName || inspection.responsibleEmail || inspection.responsible || "Sin responsable",
+        responsibleProfileId: inspection.responsibleProfileId,
         recommendedAction: isOverdue ? "Atender la inspeccion vencida y registrar seguimiento." : "Revisar la inspeccion proxima a vencer y coordinar respuesta.",
         detail: inspection.description,
         href: "/projects/" + project.id + "/direction-inspections"
